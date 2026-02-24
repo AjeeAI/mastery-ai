@@ -1,35 +1,37 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import React from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
+
+// Import our components/pages
+import Navbar from './components/NavBar';
+import ExplainMistakePage from './pages/ExplainMistakePage';
+import ProfilePage from './pages/ProfilePage';
 
 function App() {
-  const [count, setCount] = useState(0)
-
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
+    <div className="min-h-screen bg-slate-50 flex flex-col">
+      {/* This Navbar is outside the Routes! 
+        That means it will NEVER unmount and will show on every page. 
+      */}
+      <Navbar />
+
+      {/* The rest of the screen is where our page content will render */}
+      <div className="flex-1">
+        <Routes>
+          {/* Default route redirects to mastery path for now */}
+          <Route path="/" element={<Navigate to="/mastery-path" />} />
+          
+          {/* Our Mistake Explanation Page */}
+          <Route path="/mastery-path" element={<ExplainMistakePage />} />
+          
+          {/* Our Profile Settings Page */}
+          <Route path="/profile" element={<ProfilePage />} />
+          
+          {/* Add your other routes as your team builds them */}
+          {/* <Route path="/dashboard" element={<DashboardPage />} /> */}
+        </Routes>
       </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+    </div>
+  );
 }
 
-export default App
+export default App;
