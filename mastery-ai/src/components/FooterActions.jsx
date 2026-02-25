@@ -1,0 +1,18 @@
+import { Compass, HelpCircle } from 'lucide-react';
+
+export default function FooterActions() {
+  return (
+    <div className="flex flex-col md:flex-row justify-between items-center gap-4 py-6 border-t border-gray-200 mt-8">
+        <div className="flex gap-4 w-full md:w-auto">
+            <button className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-xl font-bold transition-colors cursor-pointer">
+                <Compass className="w-5 h-5" />
+                Return to Learning Map
+            </button>
+            <button className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-[#1c2438] hover:bg-[#2a3447] text-white px-6 py-3 rounded-xl font-bold transition-colors cursor-pointer">
+                <HelpCircle className="w-5 h-5" />
+                Explain My Mistakes
+            </button>
+        </div>
+    </div>
+  );
+}
