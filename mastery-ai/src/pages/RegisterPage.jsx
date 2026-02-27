@@ -7,7 +7,8 @@ const RegisterPage = () => {
   const navigate = useNavigate();
   const { login } = useAuth(); 
   
-  const [error, setError] = useState("");
+  const [error, setError] = useState(""); // Backend API Errors
+  const [formErrors, setFormErrors] = useState({}); // Frontend Validation Errors
   const [isLoading, setIsLoading] = useState(false); 
   const [showPassword, setShowPassword] = useState(false);
   
@@ -24,21 +25,128 @@ const RegisterPage = () => {
     login("mock-google-token-123");
     navigate('/ClassSelection');
   };
-  
-  const handleManualSubmit = (e) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setError("");
 
-    // --- FRONTEND DEMO MODE: Faking the API Call ---
-    setTimeout(() => {
-      // 1. Fake saving the user ID
-      localStorage.setItem("mastery_student_id", "demo-user-1234");
+  // --- CUSTOM INLINE VALIDATION LOGIC ---
+  const validateForm = () => {
+    const newErrors = {};
+    
+    // 1. Validate Name
+    if (!formData.fullName.trim()) {
+      newErrors.fullName = "Full name is required.";
+    }
+
+    // 2. Validate Email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!formData.email.trim()) {
+      newErrors.email = "Email address is required.";
+    } else if (!emailRegex.test(formData.email)) {
+      newErrors.email = "Please enter a valid email address.";
+    }
+
+    // 3. Validate Password (Minimum 6 characters)
+   // 3. Validate Password (Minimum 8 characters)
+    if (!formData.password) {
+      newErrors.password = "Password is required.";
+    } else if (formData.password.length < 8) { // <-- CHANGE THIS TO 8
+      newErrors.password = "Password must be at least 8 characters long."; // <-- CHANGE THIS TO 8
+    }
+    setFormErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+  
+  const handleInputChange = (field, value) => {
+    setFormData({ ...formData, [field]: value });
+    if (formErrors[field]) {
+      setFormErrors({ ...formErrors, [field]: null });
+    }
+  };
+
+  // --- REAL BACKEND API WITH TIMEOUT RESTORED ---
+  const handleManualSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    
+    if (!validateForm()) return; 
+
+    setIsLoading(true);
+
+    // --- TIMEOUT CONTROLLER SETUP ---
+    // Gives the server exactly 15 seconds to complete BOTH registration and auto-login
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+    try {
+      // 1. Hit the Registration Endpoint
+      const regResponse = await fetch('https://mastery-backend-7xe8.onrender.com/api/v1/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          full_name: formData.fullName, 
+          email: formData.email,
+          password: formData.password
+        }),
+        signal: controller.signal // Wire the controller to the registration fetch
+      });
+
+      if (!regResponse.ok) {
+        const errData = await regResponse.json().catch(() => null);
+        throw new Error(errData?.detail || "Registration failed. Email might already be in use.");
+      }
+
+      const regData = await regResponse.json().catch(() => null);
+      let studentId = regData?.id || regData?.student_id || regData?.user_id;
+
+      // 2. Auto-Login to get the Authorization Token
+      const loginResponse = await fetch('https://mastery-backend-7xe8.onrender.com/api/v1/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: formData.email, 
+          password: formData.password
+        }),
+        signal: controller.signal // Wire the exact same controller to the login fetch
+      });
+
+      if (!loginResponse.ok) {
+        throw new Error("Account created, but auto-login failed. Please go to the Login page.");
+      }
+
+      const loginData = await loginResponse.json();
+
+      if (!studentId) {
+        studentId = loginData.student_id || loginData.id || loginData.user_id;
+        if (!studentId && loginData.access_token) {
+          try {
+            const base64Url = loginData.access_token.split('.')[1];
+            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+            const parsedToken = JSON.parse(window.atob(base64));
+            studentId = parsedToken.student_id || parsedToken.id || parsedToken.user_id;
+          } catch (e) {
+            console.warn("Could not extract UUID from token.");
+          }
+        }
+      }
+
+      if (studentId) {
+        localStorage.setItem("mastery_student_id", studentId);
+      }
       
-      // 2. Turn off loading and go to login
+      login(loginData.access_token);
+      navigate('/ClassSelection');
+
+    } catch (err) {
+      console.error("Signup Error:", err);
+      
+      // --- TIMEOUT ERROR HANDLING ---
+      if (err.name === 'AbortError') {
+        setError("The server is taking too long to respond. Please check your connection and try again.");
+      } else {
+        setError(err.message); 
+      }
+    } finally {
+      clearTimeout(timeoutId); // Stop the timer if it finishes successfully or fails early
       setIsLoading(false);
-      navigate('/login');
-    }, 1500); // 1.5 second fake delay
+    }
   };
 
   return (
@@ -95,8 +203,12 @@ const RegisterPage = () => {
             </p>
           </div>
 
+          {/* Backend API Error Banner */}
           {error && (
-            <div className="bg-rose-50 text-rose-600 p-4 rounded-xl text-sm font-medium border border-rose-100">{error}</div>
+            <div className="bg-rose-50 text-rose-600 p-4 rounded-xl text-sm font-medium border border-rose-100 flex items-start gap-3">
+              <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+              <span>{error}</span>
+            </div>
           )}
 
           <div className="flex justify-center w-full [&>div]:w-full">
@@ -111,41 +223,66 @@ const RegisterPage = () => {
             <div className="flex-grow border-t border-slate-200"></div>
           </div>
 
-          <form onSubmit={handleManualSubmit} className="space-y-4">
+          <form onSubmit={handleManualSubmit} className="space-y-4" noValidate>
+            
+            {/* FULL NAME */}
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Full Name</label>
               <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+                <span className={`absolute left-4 top-1/2 -translate-y-1/2 ${formErrors.fullName ? 'text-rose-500' : 'text-slate-400'}`}>
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
                 </span>
-                <input type="text" placeholder="e.g. Jane Doe" value={formData.fullName} onChange={(e) => setFormData({...formData, fullName: e.target.value})} className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#6b46c1] transition-all" required />
+                <input 
+                  type="text" 
+                  placeholder="e.g. Jane Doe" 
+                  value={formData.fullName} 
+                  onChange={(e) => handleInputChange('fullName', e.target.value)} 
+                  className={`w-full pl-12 pr-4 py-3 bg-white border rounded-xl text-sm focus:outline-none focus:ring-2 transition-all ${formErrors.fullName ? 'border-rose-500 focus:ring-rose-500/20 text-rose-900 placeholder:text-rose-300' : 'border-slate-200 focus:ring-[#6b46c1]'}`}
+                />
               </div>
+              {formErrors.fullName && <p className="text-[11px] text-rose-500 font-medium pl-1">{formErrors.fullName}</p>}
             </div>
 
+            {/* EMAIL */}
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">School or Personal Email</label>
               <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+                <span className={`absolute left-4 top-1/2 -translate-y-1/2 ${formErrors.email ? 'text-rose-500' : 'text-slate-400'}`}>
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
                 </span>
-                <input type="email" placeholder="jane@school.edu.ng" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#6b46c1] transition-all" required />
+                <input 
+                  type="email" 
+                  placeholder="jane@school.edu.ng" 
+                  value={formData.email} 
+                  onChange={(e) => handleInputChange('email', e.target.value)} 
+                  className={`w-full pl-12 pr-4 py-3 bg-white border rounded-xl text-sm focus:outline-none focus:ring-2 transition-all ${formErrors.email ? 'border-rose-500 focus:ring-rose-500/20 text-rose-900 placeholder:text-rose-300' : 'border-slate-200 focus:ring-[#6b46c1]'}`}
+                />
               </div>
+              {formErrors.email && <p className="text-[11px] text-rose-500 font-medium pl-1">{formErrors.email}</p>}
             </div>
 
+            {/* PASSWORD */}
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Create Password</label>
               <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+                <span className={`absolute left-4 top-1/2 -translate-y-1/2 ${formErrors.password ? 'text-rose-500' : 'text-slate-400'}`}>
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
                 </span>
-                <input type={showPassword ? "text" : "password"} placeholder="Min. 8 characters" value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})} className="w-full pl-12 pr-12 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#6b46c1] transition-all" required />
+                <input 
+                  type={showPassword ? "text" : "password"} 
+                  placeholder="Min. 8 characters"
+                  value={formData.password} 
+                  onChange={(e) => handleInputChange('password', e.target.value)} 
+                  className={`w-full pl-12 pr-12 py-3 bg-white border rounded-xl text-sm focus:outline-none focus:ring-2 transition-all ${formErrors.password ? 'border-rose-500 focus:ring-rose-500/20 text-rose-900 placeholder:text-rose-300' : 'border-slate-200 focus:ring-[#6b46c1]'}`}
+                />
                 <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none">
                   {showPassword ? <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"></path></svg> : <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>}
                 </button>
               </div>
+              {formErrors.password && <p className="text-[11px] text-rose-500 font-medium pl-1">{formErrors.password}</p>}
             </div>
 
-            <button type="submit" disabled={isLoading} className={`w-full text-white font-bold py-3.5 rounded-xl transition-all shadow-lg ${isLoading ? 'bg-slate-400 cursor-not-allowed shadow-none' : 'bg-[#6b46c1] hover:bg-[#5b3da6] shadow-indigo-500/30'}`}>
+            <button type="submit" disabled={isLoading} className={`w-full text-white font-bold py-3.5 rounded-xl transition-all shadow-lg mt-2 ${isLoading ? 'bg-slate-400 cursor-not-allowed shadow-none' : 'bg-[#6b46c1] hover:bg-[#5b3da6] shadow-indigo-500/30'}`}>
               {isLoading ? "Creating Account..." : "Create Account"}
             </button>
           </form>

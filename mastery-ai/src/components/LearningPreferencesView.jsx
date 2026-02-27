@@ -133,7 +133,7 @@ const LearningPreferencesView = () => {
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
               <span className="font-bold text-slate-700 text-sm">Mathematics</span>
             </div>
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">JSS 2 • Term 1</span>
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">sss 2 • Term 1</span>
           </div>
           
           <div className="flex justify-between items-center p-4 rounded-xl border border-slate-100 bg-slate-50">
@@ -141,7 +141,7 @@ const LearningPreferencesView = () => {
               <span className="w-2.5 h-2.5 rounded-full bg-indigo-500"></span>
               <span className="font-bold text-slate-700 text-sm">English Language</span>
             </div>
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">JSS 2 • Term 1</span>
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">sss 2 • Term 1</span>
           </div>
         </div>
       </div>

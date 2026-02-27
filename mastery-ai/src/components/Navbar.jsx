@@ -81,7 +81,7 @@ const Navbar = () => {
           <div className="text-right hidden sm:block">
             <p className="text-sm font-bold text-slate-800 group-hover:text-indigo-600 transition-colors">Alex Rivera</p>
             <p className="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-full inline-block mt-0.5 uppercase tracking-wider">
-              JSS 2 • Gold League
+              sss 2 • Gold League
             </p>
           </div>
           <div className="w-10 h-10 rounded-full overflow-hidden border border-slate-200">

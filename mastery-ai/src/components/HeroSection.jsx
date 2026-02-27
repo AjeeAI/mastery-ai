@@ -4,7 +4,7 @@ import { ChevronRight, BookOpen } from 'lucide-react';
 export default function HeroSection({ 
   userName = "Alex", 
   recentModules = 3, 
-  currentSubject = "JSS 2 Mathematics",
+  currentSubject = "sss 2 Mathematics",
   hasStartedLearning = false 
 }) {
   

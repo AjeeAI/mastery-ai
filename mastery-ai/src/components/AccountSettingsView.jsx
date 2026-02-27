@@ -53,9 +53,9 @@ const AccountSettingsView = ({ user, school, security }) => {
               onChange={handleChange}
               className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 appearance-none bg-white"
             >
-              <option value="JSS 1">JSS 1</option>
-              <option value="JSS 2">JSS 2</option>
-              <option value="JSS 3">JSS 3</option>
+              <option value="sss 1">sss 1</option>
+              <option value="sss 2">sss 2</option>
+              <option value="sss 3">sss 3</option>
             </select>
           </div>
 

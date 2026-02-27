@@ -80,7 +80,7 @@ export default function CompletedPage() {
               Here's Your Starting Point, <span style={{ color: '#7F13EC' }}>{mockResults.userName}!</span>
             </h1>
             <p className="text-gray-600 text-lg">
-              We've analyzed your diagnostic results for JSS1 Math. Your personalized<br />
+              We've analyzed your diagnostic results for ss1 Math. Your personalized<br />
               learning path is ready to help you achieve 100% mastery.
             </p>
           </div>

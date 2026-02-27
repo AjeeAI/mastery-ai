@@ -5,7 +5,8 @@ import { useAuth } from '../context/AuthContext';
 
 const LoginPage = () => {
   const navigate = useNavigate();
-  const [error, setError] = useState("");
+  const [error, setError] = useState(""); 
+  const [formErrors, setFormErrors] = useState({}); 
   const [isLoading, setIsLoading] = useState(false); 
   const [showPassword, setShowPassword] = useState(false);
   
@@ -17,26 +18,103 @@ const LoginPage = () => {
 
   const handleGoogleSuccess = async (credentialResponse) => {
     login("mock-google-token-123");
-    navigate('/ClassSelection'); 
+    navigate('/dashboard'); 
   };
 
-  const handleManualSubmit = (e) => {
+  const validateForm = () => {
+    const newErrors = {};
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    
+    if (!formData.email.trim()) {
+      newErrors.email = "Email address is required.";
+    } else if (!emailRegex.test(formData.email)) {
+      newErrors.email = "Please enter a valid email address.";
+    }
+
+    if (!formData.password) {
+      newErrors.password = "Password is required.";
+    } else if (formData.password.length < 8) { // <-- CHANGE THIS TO 8
+      newErrors.password = "Password must be at least 8 characters long."; // <-- CHANGE THIS TO 8
+    }
+
+    setFormErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleInputChange = (field, value) => {
+    setFormData({ ...formData, [field]: value });
+    if (formErrors[field]) {
+      setFormErrors({ ...formErrors, [field]: null });
+    }
+  };
+
+  const handleManualSubmit = async (e) => {
     e.preventDefault();
-    setIsLoading(true);
     setError("");
 
-    // --- FRONTEND DEMO MODE: Faking the Login API Call ---
-    setTimeout(() => {
-      // 1. Save fake UUID
-      localStorage.setItem("mastery_student_id", "demo-user-1234");
+    if (!validateForm()) return; 
+
+    setIsLoading(true);
+
+    // --- TIMEOUT CONTROLLER SETUP ---
+    // This will force the request to abort if it takes longer than 15 seconds
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); 
+
+    try {
+      const response = await fetch('https://mastery-backend-7xe8.onrender.com/api/v1/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: formData.email, 
+          password: formData.password
+        }),
+        signal: controller.signal // Wire the controller to the fetch request
+      });
+
+      // Clear the timeout stopwatch if the server responds in time!
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => null);
+        throw new Error(errData?.detail || "Login failed. Please check your credentials.");
+      }
+
+      const data = await response.json();
       
-      // 2. Authorize the user with a fake token so they can access the app
-      login("demo-frontend-token-xyz");
+      let studentId = data.student_id || data.id || data.user_id;
+
+      if (!studentId && data.access_token) {
+        try {
+          const base64Url = data.access_token.split('.')[1];
+          const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+          const parsedToken = JSON.parse(window.atob(base64));
+          studentId = parsedToken.student_id || parsedToken.id || parsedToken.user_id;
+        } catch (tokenErr) {
+          console.warn("Could not decode token to find UUID.");
+        }
+      }
+
+      if (studentId) {
+        localStorage.setItem("mastery_student_id", studentId);
+      }
+
+      login(data.access_token);
+      navigate('/dashboard'); 
+
+    } catch (err) {
+      console.error("Login Error:", err);
       
-      // 3. Turn off loading and go to Onboarding
+      // --- TIMEOUT ERROR HANDLING ---
+      // If the abort controller killed the request, it throws an 'AbortError'
+      if (err.name === 'AbortError') {
+        setError("The server is taking too long to respond. Please check your connection and try again.");
+      } else {
+        setError(err.message); 
+      }
+    } finally {
       setIsLoading(false);
-      navigate('/ClassSelection'); 
-    }, 1500); // 1.5 second fake delay
+    }
   };
   
   return (
@@ -76,18 +154,29 @@ const LoginPage = () => {
           </div>
 
           {error && (
-            <div className="bg-rose-50 text-rose-600 p-4 rounded-xl text-sm font-medium border border-rose-100">{error}</div>
+            <div className="bg-rose-50 text-rose-600 p-4 rounded-xl text-sm font-medium border border-rose-100 flex items-start gap-3">
+              <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+              <span>{error}</span>
+            </div>
           )}
 
-          <form onSubmit={handleManualSubmit} className="space-y-5">
+          <form onSubmit={handleManualSubmit} className="space-y-5" noValidate>
+            
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Email Address</label>
               <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+                <span className={`absolute left-4 top-1/2 -translate-y-1/2 ${formErrors.email ? 'text-rose-500' : 'text-slate-400'}`}>
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
                 </span>
-                <input type="email" placeholder="student@spark.edu" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} className="w-full pl-12 pr-4 py-3.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#6b46c1] focus:border-transparent transition-all placeholder:text-slate-300" />
+                <input 
+                  type="email" 
+                  placeholder="student@spark.edu" 
+                  value={formData.email} 
+                  onChange={(e) => handleInputChange('email', e.target.value)} 
+                  className={`w-full pl-12 pr-4 py-3.5 bg-white border rounded-xl text-sm focus:outline-none focus:ring-2 transition-all ${formErrors.email ? 'border-rose-500 focus:ring-rose-500/20 text-rose-900 placeholder:text-rose-300' : 'border-slate-200 focus:ring-[#6b46c1]'}`}
+                />
               </div>
+              {formErrors.email && <p className="text-[11px] text-rose-500 font-medium pl-1">{formErrors.email}</p>}
             </div>
 
             <div className="space-y-1.5">
@@ -96,17 +185,24 @@ const LoginPage = () => {
                 <a href="#" className="text-xs font-bold text-[#6b46c1] hover:text-[#4f46e5] transition-colors">Forgot Password?</a>
               </div>
               <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+                <span className={`absolute left-4 top-1/2 -translate-y-1/2 ${formErrors.password ? 'text-rose-500' : 'text-slate-400'}`}>
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
                 </span>
-                <input type={showPassword ? "text" : "password"} placeholder="••••••••" value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})} className="w-full pl-12 pr-12 py-3.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#6b46c1] focus:border-transparent transition-all placeholder:text-slate-300 tracking-widest" />
+                <input 
+                  type={showPassword ? "text" : "password"} 
+                  placeholder="••••••••" 
+                  value={formData.password} 
+                  onChange={(e) => handleInputChange('password', e.target.value)} 
+                  className={`w-full pl-12 pr-12 py-3.5 bg-white border rounded-xl text-sm focus:outline-none focus:ring-2 transition-all tracking-widest ${formErrors.password ? 'border-rose-500 focus:ring-rose-500/20 text-rose-900 placeholder:text-rose-300' : 'border-slate-200 focus:ring-[#6b46c1] placeholder:tracking-normal'}`}
+                />
                 <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none">
                   {showPassword ? <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"></path></svg> : <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>}
                 </button>
               </div>
+              {formErrors.password && <p className="text-[11px] text-rose-500 font-medium pl-1">{formErrors.password}</p>}
             </div>
 
-            <button type="submit" disabled={isLoading} className={`w-full text-white font-bold py-3.5 rounded-xl transition-all shadow-lg flex justify-center items-center gap-2 ${isLoading ? 'bg-slate-400 cursor-not-allowed shadow-none' : 'bg-[#6b46c1] hover:bg-[#5b3da6] shadow-indigo-500/30'}`}>
+            <button type="submit" disabled={isLoading} className={`w-full text-white font-bold py-3.5 rounded-xl transition-all shadow-lg flex justify-center items-center gap-2 mt-2 ${isLoading ? 'bg-slate-400 cursor-not-allowed shadow-none' : 'bg-[#6b46c1] hover:bg-[#5b3da6] shadow-indigo-500/30'}`}>
               {isLoading ? "Signing In..." : "Sign In"}
               {!isLoading && <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>}
             </button>
