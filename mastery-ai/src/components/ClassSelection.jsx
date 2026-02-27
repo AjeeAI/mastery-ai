@@ -8,41 +8,20 @@ const ClassSelection = () => {
   const [isFetchingMetadata, setIsFetchingMetadata] = useState(true);
   const navigate = useNavigate();
 
-  // State to hold data from your API
   const [availableGrades, setAvailableGrades] = useState([]);
   const [availableTerms, setAvailableTerms] = useState([]);
 
-  // Fetch Metadata from FastAPI on component mount
   useEffect(() => {
-    const fetchLevels = async () => {
-      try {
-        const response = await fetch('https://mastery-backend-7xe8.onrender.com/api/v1/metadata/levels');
-        if (!response.ok) throw new Error("Failed to fetch levels data");
-        const data = await response.json();
-
-        // Data Mapper: Attach specific icons and labels to the API strings
-        const gradeDetails = {
-          'SSS1': { label: 'Grade 10', icon: '📖' },
-          'SSS2': { label: 'Grade 11', icon: '📘' },
-          'SSS3': { label: 'Grade 12', icon: '🎓' },
-        };
-
-        const mappedGrades = data.levels.map(level => ({
-          id: level,
-          label: gradeDetails[level]?.label || 'Class Level', // Fallback label
-          icon: gradeDetails[level]?.icon || '📚' // Fallback icon
-        }));
-
-        setAvailableGrades(mappedGrades);
-        setAvailableTerms(data.terms);
-      } catch (error) {
-        console.error("Error fetching metadata:", error);
-      } finally {
-        setIsFetchingMetadata(false);
-      }
-    };
-
-    fetchLevels();
+    // --- FRONTEND DEMO MODE: Hardcoded Levels ---
+    setTimeout(() => {
+      setAvailableGrades([
+        { id: 'SSS1', label: 'Grade 10', icon: '📖' },
+        { id: 'SSS2', label: 'Grade 11', icon: '📘' },
+        { id: 'SSS3', label: 'Grade 12', icon: '🎓' },
+      ]);
+      setAvailableTerms([1, 2, 3]);
+      setIsFetchingMetadata(false);
+    }, 600); // 0.6 sec fake delay so the UI looks alive
   }, []);
 
   const handleContinue = () => {
@@ -53,19 +32,13 @@ const ClassSelection = () => {
 
     setIsLoading(true);
 
-    // Navigate to SubjectSelection AND pass the chosen grade and term!
+    // --- FRONTEND DEMO MODE: Fake Saving ---
     setTimeout(() => {
       setIsLoading(false);
-      
-      // <-- UPDATED: Passing the state forward so SubjectSelection can use it for the API POST -->
       navigate('/SubjectSelection', { 
-        state: { 
-          grade: selectedGrade, 
-          term: selectedTerm 
-        } 
+        state: { grade: selectedGrade, term: selectedTerm } 
       });
-      
-    }, 600); 
+    }, 800); 
   };
 
   return (
@@ -85,7 +58,6 @@ const ClassSelection = () => {
           <div className="mb-12 text-[#635BFF] font-bold animate-pulse">Loading curriculum levels...</div>
         ) : (
           <>
-            {/* Grade Cards Grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
               {availableGrades.map((grade) => {
                 const isSelected = selectedGrade === grade.id;
@@ -112,7 +84,6 @@ const ClassSelection = () => {
               })}
             </div>
 
-            {/* Term Selector Card */}
             <div className="bg-white p-10 rounded-[2.5rem] shadow-sm border max-w-xl mx-auto mb-10" style={{ borderColor: '#E3E8EE' }}>
               <div className="flex items-center gap-3 font-semibold mb-5 justify-center" style={{ color: '#4F566B' }}>
                 <span className="text-xl">📅</span> Which term are you currently in?
@@ -125,7 +96,6 @@ const ClassSelection = () => {
                   style={{ backgroundColor: '#F7FAFC', borderColor: '#E3E8EE', color: '#4F566B' }}
                 >
                   <option value="">Select Current Term</option>
-                  {/* Dynamically render terms from API */}
                   {availableTerms.map(term => (
                     <option key={term} value={term}>Term {term}</option>
                   ))}
@@ -142,7 +112,6 @@ const ClassSelection = () => {
           </>
         )}
 
-        {/* Continue Button */}
         <button 
           onClick={handleContinue}
           disabled={isLoading || !selectedGrade || !selectedTerm} 

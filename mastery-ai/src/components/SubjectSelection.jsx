@@ -1,13 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext'; // <-- 1. Import Auth Context
+import { useNavigate } from 'react-router-dom';
 
 const SubjectSelection = () => {
   const navigate = useNavigate();
-  const location = useLocation(); 
-  
-  // <-- 2. Grab the token from your context -->
-  const { token } = useAuth(); 
   
   const [selectedSubjects, setSelectedSubjects] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -15,34 +10,15 @@ const SubjectSelection = () => {
   const [isFetchingMetadata, setIsFetchingMetadata] = useState(true);
 
   useEffect(() => {
-    const fetchSubjects = async () => {
-      try {
-        const response = await fetch('https://mastery-backend-7xe8.onrender.com/api/v1/metadata/subjects');
-        if (!response.ok) throw new Error("Failed to fetch subjects");
-        const data = await response.json();
-
-        const subjectDetails = {
-          'math': { label: 'Mathematics', icon: '➕', description: 'Algebra, Geometry, and Data Analysis tailored to you.' },
-          'english': { label: 'English Studies', icon: '📖', description: 'Grammar, Literature, and Creative Writing mastery.' },
-          'civic': { label: 'Civic Education', icon: '🌍', description: 'Civic rights, and History of modern society.' }
-        };
-
-        const mappedSubjects = data.subjects.map(sub => ({
-          id: sub,
-          label: subjectDetails[sub]?.label || sub.toUpperCase(),
-          icon: subjectDetails[sub]?.icon || '📚',
-          description: subjectDetails[sub]?.description || `Personalized learning path for ${sub}.`
-        }));
-
-        setAvailableSubjects(mappedSubjects);
-      } catch (error) {
-        console.error("Error fetching subjects:", error);
-      } finally {
-        setIsFetchingMetadata(false);
-      }
-    };
-
-    fetchSubjects();
+    // --- FRONTEND DEMO MODE: Hardcoded Subjects ---
+    setTimeout(() => {
+      setAvailableSubjects([
+        { id: 'math', label: 'MATHEMATICS', icon: '➕', description: 'Algebra, Geometry, and Data Analysis tailored to you.' },
+        { id: 'english', label: 'ENGLISH STUDIES', icon: '📖', description: 'Grammar, Literature, and Creative Writing mastery.' },
+        { id: 'civic', label: 'CIVIC EDUCATION', icon: '🌍', description: 'Civic rights, and History of modern society.' }
+      ]);
+      setIsFetchingMetadata(false);
+    }, 600);
   }, []);
 
   const toggleSubject = (id) => {
@@ -53,79 +29,19 @@ const SubjectSelection = () => {
     }
   };
 
-const handleContinue = async () => {
+  const handleContinue = () => {
     if (selectedSubjects.length === 0) {
       alert("Please select at least one subject to continue.");
       return;
     }
 
-    const cleanToken = token ? token.replace(/['"]+/g, '').trim() : '';
-
-    if (!cleanToken || cleanToken === "temp-token") {
-      alert("Your session is invalid or missing. Please log out and log back in!");
-      return;
-    }
-
     setIsLoading(true);
 
-    try {
-      const term = location.state?.term || 1; 
-      const sssLevel = location.state?.grade || "SSS1"; 
-      
-      // --- DECODE TOKEN & LOG IT ---
-      let realStudentId = "";
-      try {
-        const base64Url = cleanToken.split('.')[1];
-        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-        const parsedToken = JSON.parse(window.atob(base64));
-        
-        // 👇 WE WILL PRINT THE TOKEN TO THE CONSOLE SO YOU CAN SEE IT!
-        console.log("🚨 DECODED TOKEN PAYLOAD:", parsedToken); 
-        
-        // Adding .student_id to the list of guesses
-        realStudentId = parsedToken.student_id || parsedToken.id || parsedToken.user_id || parsedToken.sub;
-        
-      } catch (e) {
-        console.error("Could not decode token", e);
-        throw new Error("Invalid token format.");
-      }
-
-      if (!realStudentId) {
-         throw new Error("Could not find your user ID in the token.");
-      }
-
-      const payload = {
-        student_id: realStudentId, 
-        sss_level: sssLevel,
-        subjects: selectedSubjects, 
-        term: parseInt(term, 10)    
-      };
-
-      console.log("📤 Sending Payload to Backend:", payload);
-
-      const response = await fetch('https://mastery-backend-7xe8.onrender.com/api/v1/students/profile/setup', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'accept': 'application/json',
-          'Authorization': `Bearer ${cleanToken}` 
-        },
-        body: JSON.stringify(payload)
-      });
-
-      if (!response.ok) {
-        const errData = await response.json().catch(() => null);
-        throw new Error(errData?.detail || "Failed to setup profile");
-      }
-
-      navigate('/LearningPreferences');
-
-    } catch (error) {
-      console.error("Setup Error:", error);
-      alert(`Error: ${error.message}`);
-    } finally {
+    // --- FRONTEND DEMO MODE: Faking the Profile Setup POST ---
+    setTimeout(() => {
       setIsLoading(false);
-    }
+      navigate('/LearningPreferences');
+    }, 1200); // 1.2 second fake saving delay
   };
 
   return (

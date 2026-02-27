@@ -21,91 +21,24 @@ const RegisterPage = () => {
   const GOOGLE_CLIENT_ID = rawClientId.replace(/['"]/g, '').trim();
 
   const handleGoogleSuccess = async (credentialResponse) => {
-    try {
-      const googleToken = credentialResponse.credential;
-      login(googleToken);
-      navigate('/ClassSelection');
-    } catch (err) {
-      console.error(err);
-      setError("Failed to sync with server. Please try again.");
-    }
+    login("mock-google-token-123");
+    navigate('/ClassSelection');
   };
   
-  const handleManualSubmit = async (e) => {
+  const handleManualSubmit = (e) => {
     e.preventDefault();
     setIsLoading(true);
     setError("");
 
-    try {
-      // STEP 1: CREATE THE ACCOUNT
-      const regResponse = await fetch('https://mastery-backend-7xe8.onrender.com/api/v1/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          full_name: formData.fullName, 
-          email: formData.email,
-          password: formData.password
-        })
-      });
-
-      if (!regResponse.ok) {
-        const errData = await regResponse.json().catch(() => null);
-        throw new Error(errData?.detail || "Registration failed. Email might already be in use.");
-      }
-
-      // Try to grab the UUID from the registration response first
-      const regData = await regResponse.json().catch(() => null);
-      let studentId = regData?.id || regData?.student_id || regData?.user_id;
-
-      // STEP 2: IMMEDIATELY FETCH THE TOKEN (So onboarding is authorized)
-      const loginResponse = await fetch('https://mastery-backend-7xe8.onrender.com/api/v1/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: formData.email, 
-          password: formData.password
-        })
-      });
-
-      if (!loginResponse.ok) {
-        throw new Error("Account created, but authorization failed. Please go to Login.");
-      }
-
-      const loginData = await loginResponse.json();
-
-      // If we didn't get the UUID during registration, check the login response or decode the token
-      if (!studentId) {
-        studentId = loginData.student_id || loginData.id || loginData.user_id;
-        
-        if (!studentId && loginData.access_token) {
-          try {
-            const base64Url = loginData.access_token.split('.')[1];
-            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-            const parsedToken = JSON.parse(window.atob(base64));
-            studentId = parsedToken.student_id || parsedToken.id || parsedToken.user_id;
-          } catch (e) {
-            console.warn("Could not extract UUID from token.");
-          }
-        }
-      }
-
-      // STEP 3: SAVE EVERYTHING 
-      if (studentId) {
-        localStorage.setItem("mastery_student_id", studentId);
-      }
+    // --- FRONTEND DEMO MODE: Faking the API Call ---
+    setTimeout(() => {
+      // 1. Fake saving the user ID
+      localStorage.setItem("mastery_student_id", "demo-user-1234");
       
-      // Save the token to AuthContext so SubjectSelection has permission to hit the backend
-      login(loginData.access_token);
-
-      // STEP 4: ROUTE STRAIGHT TO ONBOARDING
-      navigate('/ClassSelection');
-
-    } catch (err) {
-      console.error("Signup Error:", err);
-      setError(err.message);
-    } finally {
+      // 2. Turn off loading and go to login
       setIsLoading(false);
-    }
+      navigate('/login');
+    }, 1500); // 1.5 second fake delay
   };
 
   return (
@@ -163,14 +96,12 @@ const RegisterPage = () => {
           </div>
 
           {error && (
-            <div className="bg-rose-50 text-rose-600 p-4 rounded-xl text-sm font-medium border border-rose-100">
-              {error}
-            </div>
+            <div className="bg-rose-50 text-rose-600 p-4 rounded-xl text-sm font-medium border border-rose-100">{error}</div>
           )}
 
           <div className="flex justify-center w-full [&>div]:w-full">
             <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-              <GoogleLogin onSuccess={handleGoogleSuccess} onError={() => setError("Google Signup Failed. Please try again.")} useOneTap theme="outline" size="large" text="signup_with" width="100%" shape="rectangular" />
+              <GoogleLogin onSuccess={handleGoogleSuccess} onError={() => setError("Google Signup Failed.")} useOneTap theme="outline" size="large" text="signup_with" width="100%" shape="rectangular" />
             </GoogleOAuthProvider>
           </div>
 

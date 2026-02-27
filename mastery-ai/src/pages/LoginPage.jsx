@@ -16,68 +16,27 @@ const LoginPage = () => {
   const GOOGLE_CLIENT_ID = rawClientId.replace(/['"]/g, '').trim();
 
   const handleGoogleSuccess = async (credentialResponse) => {
-    try {
-      const googleToken = credentialResponse.credential;
-      login(googleToken);
-      navigate('/dashboard'); 
-    } catch (err) {
-      console.error(err);
-      setError("Failed to sync with server. Please try again.");
-    }
+    login("mock-google-token-123");
+    navigate('/ClassSelection'); 
   };
 
-  const handleManualSubmit = async (e) => {
+  const handleManualSubmit = (e) => {
     e.preventDefault();
     setIsLoading(true);
     setError("");
 
-    try {
-      const response = await fetch('https://mastery-backend-7xe8.onrender.com/api/v1/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: formData.email, 
-          password: formData.password
-        })
-      });
-
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.detail || "Login failed. Please check your credentials.");
-      }
-
-      const data = await response.json();
+    // --- FRONTEND DEMO MODE: Faking the Login API Call ---
+    setTimeout(() => {
+      // 1. Save fake UUID
+      localStorage.setItem("mastery_student_id", "demo-user-1234");
       
-      // --- CAPTURE THE UUID FOR ONBOARDING ---
-      let studentId = data.student_id || data.id || data.user_id;
-
-      if (!studentId && data.access_token) {
-        try {
-          const base64Url = data.access_token.split('.')[1];
-          const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-          const parsedToken = JSON.parse(window.atob(base64));
-          studentId = parsedToken.student_id || parsedToken.id || parsedToken.user_id;
-        } catch (tokenErr) {
-          console.warn("Could not decode token to find UUID.");
-        }
-      }
-
-      if (studentId) {
-        localStorage.setItem("mastery_student_id", studentId);
-      }
-      // ---------------------------------------
-
-      login(data.access_token);
+      // 2. Authorize the user with a fake token so they can access the app
+      login("demo-frontend-token-xyz");
       
-      // Route to Onboarding!
-      navigate('/ClassSelection'); 
-
-    } catch (err) {
-      console.error("Login Error:", err);
-      setError(err.message);
-    } finally {
+      // 3. Turn off loading and go to Onboarding
       setIsLoading(false);
-    }
+      navigate('/ClassSelection'); 
+    }, 1500); // 1.5 second fake delay
   };
   
   return (
@@ -161,7 +120,7 @@ const LoginPage = () => {
 
           <div className="flex justify-center w-full [&>div]:w-full">
             <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-              <GoogleLogin onSuccess={handleGoogleSuccess} onError={() => setError("Google Login Failed. Please try again.")} useOneTap theme="outline" size="large" text="continue_with" width="100%" shape="rectangular" />
+              <GoogleLogin onSuccess={handleGoogleSuccess} onError={() => setError("Google Login Failed.")} useOneTap theme="outline" size="large" text="continue_with" width="100%" shape="rectangular" />
             </GoogleOAuthProvider>
           </div>
 
