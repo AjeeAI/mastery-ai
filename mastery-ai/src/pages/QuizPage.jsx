@@ -81,7 +81,7 @@ const QuizPage = () => {
     if (isLastQuestion) {
       console.log("Final Submission Payload:", updatedAnswers);
       // Future: await fetch('http://localhost:8000/api/quiz/submit', ...)
-      navigate('/mastery-path'); // Redirect back to dashboard after finish
+      navigate('/dashboard'); // Redirect back to dashboard after finish
     } else {
       setCurrentIndex(currentIndex + 1);
       // Pre-fill if they already answered this question (e.g., if they went back)
@@ -95,7 +95,7 @@ const QuizPage = () => {
 
     if (isLastQuestion) {
       console.log("Final Submission Payload (with skips):", updatedAnswers);
-      navigate('/mastery-path');
+      navigate('/dashboard');
     } else {
       setCurrentIndex(currentIndex + 1);
       setSelectedOption(updatedAnswers[mockQuestions[currentIndex + 1].id] || null);
