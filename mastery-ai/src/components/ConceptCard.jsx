@@ -12,7 +12,7 @@ export default function ConceptCard({ title, mastery, description }) {
       <div className="w-full bg-slate-700 rounded-full h-2 mb-4">
         <div className={`${barColor} h-2 rounded-full`} style={{ width: `${mastery}%` }}></div>
       </div>
-      <p className="text-slate-400 text-xs leading-relaxed">
+      <p className="text-slate-300 text-sm leading-relaxed">
         {description}
       </p>
     </div>
