@@ -24,6 +24,7 @@ import LandingPageHeader from './components/LandingPageHeader';
 import LandingPageFooter from './components/LandingPageFooter';
 import HomePage from './HomePage';
 import AboutPage from './AboutPage';
+import ContactPage from './ContactPage';
 
 function App() {
   return (
@@ -34,6 +35,7 @@ function App() {
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/about" element={<AboutPage />} />
+            <Route path="/contact" element={<ContactPage />} />
           </Routes>
         </main>
         <LandingPageFooter />

@@ -23,7 +23,7 @@ const LandingPageFooter = () => {
             <ul className="space-y-3">
               <li><Link to="/" className="text-slate-500 hover:text-blue-600 text-sm transition-colors">Home</Link></li>
               <li><Link to="/about" className="text-slate-500 hover:text-blue-600 text-sm transition-colors">About</Link></li>
-              <li><Link to="#" className="text-slate-500 hover:text-blue-600 text-sm transition-colors">Contact</Link></li>
+              <li><Link to="/contact" className="text-slate-500 hover:text-blue-600 text-sm transition-colors">Contact</Link></li>
               <li><Link to="#" className="text-slate-500 hover:text-blue-600 text-sm transition-colors">Pricing</Link></li>
             </ul>
           </div>

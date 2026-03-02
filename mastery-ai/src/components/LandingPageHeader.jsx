@@ -9,7 +9,7 @@ const LandingPageHeader = () => {
   const navLinks = [
     { name: 'Home', path: '/' },
     { name: 'About', path: '/about' },
-    { name: 'Contact', path: '#' },
+    { name: 'Contact', path: '/contact' },
     { name: 'Pricing', path: '#' }
   ];
 
