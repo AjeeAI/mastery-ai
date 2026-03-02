@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-
+import loginImg from "/src/assets/login_img.png"; // Ensure this path is correct based on your project structure
 const LoginPage = () => {
   const navigate = useNavigate();
   const [error, setError] = useState(""); 
@@ -130,7 +130,7 @@ const LoginPage = () => {
 
         <div className="relative w-full max-w-lg z-10">
           <div className="bg-[#e2e8f0] rounded-3xl aspect-[4/3] w-full shadow-2xl overflow-hidden relative">
-            <img src="https://images.unsplash.com/photo-1513258496099-48168024aec0?q=80&w=1000&auto=format&fit=crop" alt="Student studying" className="object-cover w-full h-full opacity-90 mix-blend-multiply" />
+            <img src={loginImg} alt="Student studying" className="object-cover w-full h-full opacity-90 mix-blend-multiply" />
           </div>
 
           <div className="absolute -top-6 -right-6 bg-white px-6 py-4 rounded-2xl shadow-xl flex items-center gap-4 animate-bounce-slow">

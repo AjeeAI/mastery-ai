@@ -1,4 +1,5 @@
 import { Flame, Star, CheckCircle2, Clock } from 'lucide-react';
+import { useUser } from '../context/UserContext'; // <-- 1. Import our new global state
 
 import Header from '../components/Header';
 import HeroSection from '../components/HeroSection';
@@ -10,6 +11,13 @@ import Leaderboard from '../components/Leaderboard';
 import Footer from '../components/Footer';
 
 export default function Dashboard() {
+    // <-- 2. Grab the user data instantly! -->
+    const { userData } = useUser(); 
+
+    // Safely construct the full name for the leaderboard
+    const fullName = userData 
+      ? `${userData.first_name || ''} ${userData.last_name || ''}`.trim() 
+      : 'Student';
 
     // Mock API data for LearningMap nodes
     const apiData = [
@@ -23,16 +31,20 @@ export default function Dashboard() {
     const apiLeaderboardData = [
         { id: "u1", rank: 1, name: "Sarah Jenkins", points: "4,250" },
         { id: "u2", rank: 2, name: "Marcus Thorne", points: "3,900" },
-        { id: "u3", rank: 3, name: "Alex Rivera", points: "3,450", isCurrentUser: true }
+        // <-- 3. Inject the real user's name into the leaderboard! -->
+        { id: "u3", rank: 3, name: fullName, points: "3,450", isCurrentUser: true } 
     ];
 
     return (
         <div className="min-h-screen bg-[#F8FAFC] font-sans">
-            {/* <Header name="Alex Rivera" classLevel="SSS 2" /> */}
-
             <main className="max-w-9xl mx-auto px-6 py-8">
                 <div className="flex flex-col lg:flex-row gap-6 mb-8">
-                    <HeroSection userName='Alex' recentModules={3} currentSubject="SSS 2 Mathematics" hasStartedLearning={true}/>
+                    {/* <-- 4. Removed userName prop because HeroSection now handles it internally! --> */}
+                    <HeroSection 
+                        recentModules={3} 
+                        currentSubject="SSS 2 Mathematics" 
+                        hasStartedLearning={true}
+                    />
                     <AIRecommendation/>
                 </div>
 

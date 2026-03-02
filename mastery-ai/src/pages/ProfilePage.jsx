@@ -4,18 +4,31 @@ import SettingsSidebar from '../components/SettingsSidebar';
 import AccountSettingsView from '../components/AccountSettingsView';
 import LearningPreferencesView from '../components/LearningPreferencesView';
 import { profileData } from '../mocks/profileData';
+import { useUser } from '../context/UserContext'; // <-- 1. Import your global user state
 
 const ProfilePage = () => {
   // State to manage which sidebar tab is active
   const [activeTab, setActiveTab] = useState('account');
+  
+  // <-- 2. Grab the real user data from context -->
+  const { userData } = useUser();
+
+  // 3. Blend the real backend data with your mock data! 
+  // If the backend has their name/email, use it. Otherwise, fall back to the mock.
+  const activeUser = {
+    ...profileData.user,
+    name: userData ? `${userData.first_name || ''} ${userData.last_name || ''}`.trim() : profileData.user.name,
+    email: userData?.email || profileData.user.email,
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 pb-12">
-      {/* <Navbar /> - Assuming shared team component */}
+      {/* <Navbar /> - Handled by StudentLayout in App.jsx */}
       
       <main className="max-w-6xl mx-auto px-4 py-8 space-y-6">
         {/* Top Banner Area */}
-        <ProfileBanner user={profileData.user} />
+        {/* 4. Pass the blended activeUser instead of the raw mock data */}
+        <ProfileBanner user={activeUser} />
 
         {/* Bottom Split Layout */}
         <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
@@ -30,7 +43,7 @@ const ProfilePage = () => {
             {/* Conditional rendering based on active tab */}
             {activeTab === 'account' && (
               <AccountSettingsView 
-                user={profileData.user} 
+                user={activeUser} // <-- Pass the blended activeUser here too!
                 school={profileData.school} 
                 security={profileData.security} 
               />

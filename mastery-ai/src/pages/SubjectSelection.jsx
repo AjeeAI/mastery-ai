@@ -1,16 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext'; // <-- Import Auth
+import { useUser } from '../context/UserContext'; // <-- Import User Context
 
 const SubjectSelection = () => {
   const navigate = useNavigate();
+  const location = useLocation(); // <-- Grab the grade/term passed from the previous page!
+  const { token } = useAuth();
+  const { updateLocalStudent } = useUser();
+  const apiUrl = import.meta.env.VITE_API_URL || 'https://mastery-backend-7xe8.onrender.com/api/v1';
   
   const [selectedSubjects, setSelectedSubjects] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [availableSubjects, setAvailableSubjects] = useState([]);
   const [isFetchingMetadata, setIsFetchingMetadata] = useState(true);
+  const [errorMsg, setErrorMsg] = useState(""); // <-- Added error state
 
   useEffect(() => {
     // --- FRONTEND DEMO MODE: Hardcoded Subjects ---
+    // Keep this until you have an endpoint for fetching dynamic subjects
     setTimeout(() => {
       setAvailableSubjects([
         { id: 'math', label: 'MATHEMATICS', icon: '➕', description: 'Algebra, Geometry, and Data Analysis tailored to you.' },
@@ -29,19 +37,62 @@ const SubjectSelection = () => {
     }
   };
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (selectedSubjects.length === 0) {
       alert("Please select at least one subject to continue.");
       return;
     }
 
     setIsLoading(true);
+    setErrorMsg("");
 
-    // --- FRONTEND DEMO MODE: Faking the Profile Setup POST ---
-    setTimeout(() => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
+    try {
+      // 1. Build the payload, blending the previous page's data with the new subjects
+      const payload = {
+        subjects: selectedSubjects,
+        ...(location.state?.grade && { sss_level: location.state.grade }),
+        ...(location.state?.term && { current_term: parseInt(location.state.term, 10) })
+      };
+
+      // 2. Make the real backend request
+      // Note: Using PUT here to update the profile we started on the previous page
+      const response = await fetch(`${apiUrl}/students/profile/setup`, {
+        method: 'PUT', 
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      // If the backend strictly requires POST for this endpoint, change 'PUT' to 'POST' above.
+      if (!response.ok) {
+        const errData = await response.json().catch(() => null);
+        throw new Error(errData?.detail || "Failed to save your subjects. Please try again.");
+      }
+
+      // 3. Instantly update the global context with the newly selected subjects
+      updateLocalStudent({ subjects: selectedSubjects });
+
+      // 4. Move to the next onboarding step
+      navigate('/learning-preferences');
+
+    } catch (err) {
+      console.error("Subject Save Error:", err);
+      if (err.name === 'AbortError') {
+        setErrorMsg("The server is taking too long to respond. Please try again.");
+      } else {
+        setErrorMsg(err.message);
+      }
+    } finally {
       setIsLoading(false);
-      navigate('/LearningPreferences');
-    }, 1200); // 1.2 second fake saving delay
+    }
   };
 
   return (
@@ -57,6 +108,13 @@ const SubjectSelection = () => {
           Pick the subjects you'd like to focus on for SSS1-SSS3. You can personalize your learning path for each choice later.
         </p>
       </div>
+
+      {/* Display backend errors if saving fails */}
+      {errorMsg && (
+        <div className="mb-8 max-w-xl mx-auto p-4 bg-rose-50 border border-rose-200 text-rose-600 rounded-xl text-sm font-medium text-center">
+          {errorMsg}
+        </div>
+      )}
 
       {isFetchingMetadata ? (
         <div className="text-center font-bold text-[#5850EC] animate-pulse mb-16">

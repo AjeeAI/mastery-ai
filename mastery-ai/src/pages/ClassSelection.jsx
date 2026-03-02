@@ -1,18 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { useUser } from '../context/UserContext'; //
 
 const ClassSelection = () => {
   const [selectedGrade, setSelectedGrade] = useState('');
   const [selectedTerm, setSelectedTerm] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isFetchingMetadata, setIsFetchingMetadata] = useState(true);
+  const [errorMsg, setErrorMsg] = useState(""); 
+  
   const navigate = useNavigate();
-
-  const [availableGrades, setAvailableGrades] = useState([]);
-  const [availableTerms, setAvailableTerms] = useState([]);
+  const { token } = useAuth();
+  
+  // FIXED: Destructure from useUser to avoid ReferenceError
+  const { studentData, userData, updateLocalStudent } = useUser(); 
+  
+  const apiUrl = import.meta.env.VITE_API_URL || 'https://mastery-backend-7xe8.onrender.com/api/v1';
 
   useEffect(() => {
-    // --- FRONTEND DEMO MODE: Hardcoded Levels ---
+    // Simulated fetch for available grades
     setTimeout(() => {
       setAvailableGrades([
         { id: 'SSS1', label: 'Grade 10', icon: '📖' },
@@ -21,24 +28,73 @@ const ClassSelection = () => {
       ]);
       setAvailableTerms([1, 2, 3]);
       setIsFetchingMetadata(false);
-    }, 600); // 0.6 sec fake delay so the UI looks alive
+    }, 600);
   }, []);
 
-  const handleContinue = () => {
+  const [availableGrades, setAvailableGrades] = useState([]);
+  const [availableTerms, setAvailableTerms] = useState([]);
+
+  const handleContinue = async () => {
     if (!selectedGrade || !selectedTerm) {
       alert("Please select both your grade and your current term.");
       return;
     }
 
     setIsLoading(true);
+    setErrorMsg("");
 
-    // --- FRONTEND DEMO MODE: Fake Saving ---
-    setTimeout(() => {
+    // FIXED: Safely identify the active ID from Context
+    const activeId = studentData?.user_id || userData?.id;
+
+    if (!activeId) {
+      setErrorMsg("User session not found. Please refresh and log in again.");
       setIsLoading(false);
-      navigate('/SubjectSelection', { 
+      return;
+    }
+
+    try {
+      // The backend requires specific fields for profile setup
+      const response = await fetch(`${apiUrl}/students/profile/setup`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          student_id: activeId,               // REQUIRED
+          sss_level: selectedGrade,           // REQUIRED
+          current_term: parseInt(selectedTerm, 10), // REQUIRED
+          term: parseInt(selectedTerm, 10),        // REQUIRED by validator
+          subjects: []                        // REQUIRED as an array
+        }),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        // FIXED: Parse Pydantic error array into a readable string
+        const readableError = errData.detail && Array.isArray(errData.detail) 
+          ? errData.detail.map(e => `${e.loc[e.loc.length - 1]}: ${e.msg}`).join(", ")
+          : "Failed to save setup. Please try again.";
+        throw new Error(readableError);
+      }
+
+      // Update global context so the UI reflects the new grade/term immediately
+      updateLocalStudent({
+        sss_level: selectedGrade,
+        current_term: parseInt(selectedTerm, 10),
+        subjects: []
+      });
+
+      navigate('/subject-selection', { 
         state: { grade: selectedGrade, term: selectedTerm } 
       });
-    }, 800); 
+
+    } catch (err) {
+      console.error("Setup Error:", err);
+      setErrorMsg(err.message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -51,8 +107,14 @@ const ClassSelection = () => {
       <div className="max-w-4xl mx-auto text-center">
         <h1 className="text-4xl font-extrabold mb-4" style={{ color: '#1A1F36' }}>Tell us about your class</h1>
         <p className="mb-12 max-w-md mx-auto leading-relaxed" style={{ color: '#4F5668' }}>
-          Select your current grade level to help us personalize your learning path and recommend the right topics.
+          Select your current grade level to help us personalize your learning path.
         </p>
+
+        {errorMsg && (
+          <div className="mb-8 max-w-xl mx-auto p-4 bg-rose-50 border border-rose-200 text-rose-600 rounded-xl text-sm font-medium">
+            Error: {errorMsg}
+          </div>
+        )}
 
         {isFetchingMetadata ? (
           <div className="mb-12 text-[#635BFF] font-bold animate-pulse">Loading curriculum levels...</div>
@@ -66,7 +128,7 @@ const ClassSelection = () => {
                     key={grade.id}
                     onClick={() => setSelectedGrade(grade.id)}
                     className={`relative p-8 rounded-[2.5rem] border-2 transition-all duration-300 cursor-pointer bg-white flex flex-col items-center ${isSelected ? 'shadow-2xl scale-[1.02]' : 'border-transparent shadow-sm hover:shadow-md'}`}
-                    style={{ borderColor: isSelected ? '#635BFF' : 'transparent', boxShadow: isSelected ? '0 20px 25px -5px rgba(99, 91, 255, 0.1), 0 10px 10px -5px rgba(99, 91, 255, 0.04)' : '' }}
+                    style={{ borderColor: isSelected ? '#635BFF' : 'transparent' }}
                   >
                     {isSelected && (
                       <div className="absolute top-4 right-6 text-white rounded-full w-6 h-6 flex items-center justify-center text-[10px] shadow-lg border-2 border-white" style={{ backgroundColor: '#635BFF' }}>✓</div>
@@ -76,9 +138,6 @@ const ClassSelection = () => {
                     </div>
                     <h3 className="text-2xl font-bold" style={{ color: '#1A1F36' }}>{grade.id}</h3>
                     <p className="font-medium mb-2" style={{ color: '#A3ACBF' }}>{grade.label}</p>
-                    {isSelected && (
-                      <span className="mt-2 px-4 py-1.5 text-white text-[10px] font-bold rounded-full uppercase tracking-wider shadow-sm" style={{ backgroundColor: '#635BFF' }}>Current Choice</span>
-                    )}
                   </div>
                 );
               })}
@@ -92,22 +151,17 @@ const ClassSelection = () => {
                 <select 
                   value={selectedTerm}
                   onChange={(e) => setSelectedTerm(e.target.value)}
-                  className="w-full p-4 rounded-2xl border outline-none transition-all appearance-none cursor-pointer"
-                  style={{ backgroundColor: '#F7FAFC', borderColor: '#E3E8EE', color: '#4F566B' }}
+                  className="w-full p-4 rounded-2xl border outline-none transition-all appearance-none cursor-pointer bg-[#F7FAFC] border-[#E3E8EE] text-[#4F566B]"
                 >
                   <option value="">Select Current Term</option>
                   {availableTerms.map(term => (
                     <option key={term} value={term}>Term {term}</option>
                   ))}
                 </select>
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: '#A3ACBF' }}>
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-[#A3ACBF]">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
                 </div>
               </div>
-              <p className="text-[11px] mt-5 flex items-center justify-center gap-1.5" style={{ color: '#A3ACBF' }}>
-                 <span className="w-4 h-4 rounded-full border flex items-center justify-center text-[10px] italic" style={{ borderColor: '#E3E8EE' }}>i</span> 
-                 This helps us align topics with your school calendar.
-              </p>
             </div>
           </>
         )}
@@ -118,7 +172,6 @@ const ClassSelection = () => {
           className={`w-full max-w-xl py-5 text-white text-lg font-bold rounded-2xl shadow-xl transition-all transform ${!isLoading && 'active:scale-[0.97]'}`}
           style={{ 
             backgroundColor: (isLoading || !selectedGrade || !selectedTerm) ? '#A3ACBF' : '#635BFF',
-            boxShadow: (isLoading || !selectedGrade || !selectedTerm) ? 'none' : '0 10px 15px -3px rgba(99, 91, 255, 0.3)',
             cursor: isLoading ? 'wait' : 'pointer'
           }}
         >

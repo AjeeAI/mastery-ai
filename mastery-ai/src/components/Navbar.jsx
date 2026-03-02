@@ -1,11 +1,16 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
-import NotificationModal from './NotificationModal'; // <-- 1. Import the new component
+import NotificationModal from './NotificationModal';
+import { useUser } from '../context/UserContext'; 
 
 const Navbar = () => {
   const [showNotifications, setShowNotifications] = useState(false);
   const notifRef = useRef(null);
+  
+  // 1. Grab BOTH userData and studentData from the global context
+  const { userData, studentData } = useUser(); 
 
+  // Handle clicking outside the notification modal to close it
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (notifRef.current && !notifRef.current.contains(event.target)) {
@@ -22,6 +27,15 @@ const Navbar = () => {
         ? "text-indigo-700 border-b-2 border-indigo-700 pb-1" 
         : "text-slate-500 hover:text-slate-800"
     }`;
+
+  // 2. Safely construct the display name
+  const displayName = userData 
+    ? `${userData.first_name || ''} ${userData.last_name || ''}`.trim() 
+    : 'Student';
+
+  // 3. Safely extract the academic level from the student profile
+  // If the profile hasn't loaded or isn't set, default to "Student" or "SSS 2"
+  const displayLevel = studentData?.sss_level || 'Student';
 
   return (
     <nav className="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between sticky top-0 z-50">
@@ -68,7 +82,6 @@ const Navbar = () => {
             <span className="absolute top-0 right-1 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
           </button>
 
-          {/* <-- 2. Render the new component cleanly here! --> */}
           {showNotifications && (
             <NotificationModal onClose={() => setShowNotifications(false)} />
           )}
@@ -79,9 +92,12 @@ const Navbar = () => {
         {/* User Profile Area */}
         <NavLink to="/profile" className="flex items-center gap-3 group cursor-pointer">
           <div className="text-right hidden sm:block">
-            <p className="text-sm font-bold text-slate-800 group-hover:text-indigo-600 transition-colors">Alex Rivera</p>
+            <p className="text-sm font-bold text-slate-800 group-hover:text-indigo-600 transition-colors">
+              {displayName}
+            </p>
             <p className="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-full inline-block mt-0.5 uppercase tracking-wider">
-              sss 2 • Gold League
+              {/* 4. Display the dynamically loaded class level! */}
+              {displayLevel} • Gold League
             </p>
           </div>
           <div className="w-10 h-10 rounded-full overflow-hidden border border-slate-200">

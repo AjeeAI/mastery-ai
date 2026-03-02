@@ -1,11 +1,17 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext'; // <-- Import Auth Context
+import { useUser } from '../context/UserContext'; // <-- Import User Context
 
 const LearningPreferences = () => {
   const navigate = useNavigate();
-  // Fixed: Start with a truly empty array
+  const { token } = useAuth();
+  const { updateLocalStudent } = useUser();
+  const apiUrl = import.meta.env.VITE_API_URL || 'https://mastery-backend-7xe8.onrender.com/api/v1';
+
   const [selectedStyles, setSelectedStyles] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState(""); // <-- Added error state for the UI
 
   const styles = [
     {
@@ -37,29 +43,61 @@ const LearningPreferences = () => {
   const toggleStyle = (id) => {
     if (selectedStyles.includes(id)) {
       setSelectedStyles(selectedStyles.filter((s) => s !== id));
-    } else if (selectedStyles.length < 2) { // Fixed: Restrict to exactly 2 max
+    } else if (selectedStyles.length < 2) { 
       setSelectedStyles([...selectedStyles, id]);
     }
   };
 
-  const handleContinue = () => {
-    // 1. Validate that they selected at least one style
+  const handleContinue = async () => {
     if (selectedStyles.length === 0) {
       alert("Please select at least one learning style.");
       return;
     }
 
-    // 2. Start loading animation
     setIsLoading(true);
+    setErrorMsg("");
 
-    // 3. Fake network delay, then route to the next page
-    setTimeout(() => {
-      // Future API Call Goes Here:
-      // await fetch('...', { method: 'POST', body: JSON.stringify({ learningStyles: selectedStyles }) })
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
+    try {
+      // 1. Make the real backend request
+      // Note: We use PUT since we are continuing to update the profile we started
+      const response = await fetch(`${apiUrl}/students/profile/setup`, {
+        method: 'PUT', 
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ 
+          learning_preferences: selectedStyles // Send the selected array
+        }),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => null);
+        throw new Error(errData?.detail || "Failed to save your preferences. Please try again.");
+      }
+
+      // 2. Instantly update the global context so the rest of the app knows their preferences
+      updateLocalStudent({ learning_preferences: selectedStyles });
+
+      // 3. Move to the next screen!
+      navigate('/assessment-splash');
       
+    } catch (err) {
+      console.error("Preferences Save Error:", err);
+      if (err.name === 'AbortError') {
+        setErrorMsg("The server is taking too long to respond. Please try again.");
+      } else {
+        setErrorMsg(err.message);
+      }
+    } finally {
       setIsLoading(false);
-      navigate('/AssessmentSplash');
-    }, 600);
+    }
   };
 
   return (
@@ -82,6 +120,13 @@ const LearningPreferences = () => {
             Choose up to 2 styles that help you understand best. This helps us customize your mastery path.
           </p>
         </div>
+
+        {/* Display backend errors if saving fails */}
+        {errorMsg && (
+          <div className="mb-8 p-4 bg-rose-50 border border-rose-200 text-rose-600 rounded-xl text-sm font-medium text-center">
+            {errorMsg}
+          </div>
+        )}
 
         {/* 2x2 Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-12">
@@ -113,7 +158,7 @@ const LearningPreferences = () => {
         <div className="border-t pt-8 flex items-center justify-between" style={{ borderColor: '#E5E7EB' }}>
           <button 
             type="button"
-            onClick={() => navigate('/SubjectSelection')}
+            onClick={() => navigate('/subject-selection')}
             disabled={isLoading}
             className="flex items-center gap-2 font-bold transition-colors hover:opacity-70 text-sm"
             style={{ 

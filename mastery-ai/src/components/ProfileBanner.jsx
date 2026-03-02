@@ -17,7 +17,8 @@ const ProfileBanner = ({ user }) => {
 
         {/* User Info */}
         <div className="text-center md:text-left">
-          <h1 className="text-2xl font-bold text-slate-800">{user.fullName}</h1>
+          {/* Use user.name (from our backend blend) or fallback to user.fullName */}
+          <h1 className="text-2xl font-bold text-slate-800">{user.name || user.fullName}</h1>
           
           <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 mt-2">
             <span className="bg-indigo-50 text-indigo-700 text-xs font-bold px-3 py-1 rounded-full">

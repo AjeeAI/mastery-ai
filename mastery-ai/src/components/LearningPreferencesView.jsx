@@ -1,58 +1,139 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { useUser } from '../context/UserContext';
 
 const LearningPreferencesView = () => {
-  // Local state for the interactive form elements
-  const [depth, setDepth] = useState('standard');
-  const [styles, setStyles] = useState({
+  const { token } = useAuth();
+  // studentData holds academic info; userData holds basic account info
+  const { studentData, userData, updateLocalStudent } = useUser();
+  const apiUrl = import.meta.env.VITE_API_URL;
+
+  // 1. Initialize state from global context
+  const savedPrefs = studentData?.learning_preferences || {};
+  
+  const [depth, setDepth] = useState(savedPrefs.depth || 'standard');
+  const [styles, setStyles] = useState(savedPrefs.styles || {
     visual: true,
     interactive: true,
     auditory: false,
   });
 
+  const [isSaving, setIsSaving] = useState(false);
+  const [statusMsg, setStatusMsg] = useState({ type: '', text: '' });
+
+  // 2. Sync local state if global context data updates (e.g., after initial fetch)
+  useEffect(() => {
+    if (studentData?.learning_preferences) {
+      const prefs = studentData.learning_preferences;
+      if (prefs.depth) setDepth(prefs.depth);
+      if (prefs.styles) setStyles(prefs.styles);
+    }
+  }, [studentData]);
+
   const handleToggle = (key) => {
     setStyles((prev) => ({ ...prev, [key]: !prev[key] }));
+    setStatusMsg({ type: '', text: '' }); 
   };
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    setStatusMsg({ type: '', text: '' });
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+    // Identify the correct User ID from context
+    const targetUserId = studentData?.user_id || userData?.id;
+
+    const payload = {
+      learning_preferences: { depth, styles }
+    };
+
+    try {
+      // 3. Use the canonical PUT endpoint per documentation
+      const response = await fetch(`${apiUrl}/users/${targetUserId}/preferences`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => null);
+        throw new Error(errData?.detail || "Failed to save preferences. Please try again.");
+      }
+
+      // 4. Update global state instantly so Navbar/Dashboard are in sync
+      updateLocalStudent(payload);
+      setStatusMsg({ type: 'success', text: 'Learning preferences updated successfully!' });
+
+    } catch (err) {
+      console.error("Preference Save Error:", err);
+      setStatusMsg({ 
+        type: 'error', 
+        text: err.name === 'AbortError' ? 'Server timeout. Please try again.' : err.message 
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Helper data for the Curriculum Widget
+  const currentLevel = studentData?.sss_level || "Not Set";
+  const currentTerm = studentData?.current_term || 1;
+  const enrolledSubjects = studentData?.subjects || [];
 
   return (
     <div className="space-y-6">
       
       {/* Main Preferences Card */}
       <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
-        <div className="mb-8">
+        <div className="mb-6">
           <h2 className="text-xl font-bold text-slate-800">AI Tutor Personalization</h2>
           <p className="text-sm text-slate-500 mt-1">Configure how your Adaptive AI assistant delivers lessons and feedback.</p>
         </div>
+
+        {/* Feedback Banners */}
+        {statusMsg.text && (
+          <div className={`mb-8 p-3 rounded-lg text-sm font-medium border ${
+            statusMsg.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-600'
+          }`}>
+            {statusMsg.text}
+          </div>
+        )}
 
         {/* Section 1: Explanation Depth */}
         <div className="mb-10">
           <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Explanation Depth</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Quick Summaries Card */}
             <DepthCard 
               id="quick" 
               title="Quick Summaries" 
               desc="Focused on key concepts and immediate takeaways." 
               icon="⚡" 
               currentDepth={depth} 
-              setDepth={setDepth} 
+              setDepth={(id) => { setDepth(id); setStatusMsg({ type: '', text: '' }); }} 
             />
-            {/* Standard Depth Card */}
             <DepthCard 
               id="standard" 
               title="Standard Depth" 
               desc="Default balanced approach for curriculum mastery." 
               icon="⚖️" 
               currentDepth={depth} 
-              setDepth={setDepth} 
+              setDepth={(id) => { setDepth(id); setStatusMsg({ type: '', text: '' }); }} 
             />
-            {/* Deep Dive Card */}
             <DepthCard 
               id="deep" 
               title="Deep Dive" 
               desc="Detailed explanations with cross-subject connections." 
               icon="🔬" 
               currentDepth={depth} 
-              setDepth={setDepth} 
+              setDepth={(id) => { setDepth(id); setStatusMsg({ type: '', text: '' }); }} 
             />
           </div>
         </div>
@@ -95,7 +176,7 @@ const LearningPreferencesView = () => {
             <div>
               <h4 className="font-bold text-slate-800 text-sm">Adaptive Pacing</h4>
               <p className="text-sm text-slate-600 mt-1 leading-relaxed">
-                Your AI Tutor is currently set to <span className="font-semibold text-indigo-700">Curriculum Pace</span>. It will automatically suggest prerequisite concepts if your mastery score in a concept falls below 75%.
+                Your AI Tutor is currently set to <span className="font-semibold text-indigo-700">Curriculum Pace</span>. It will automatically suggest prerequisite concepts if your mastery score falls below 75%.
               </p>
               <button className="text-indigo-600 font-semibold text-sm mt-3 hover:text-indigo-800 transition-colors">
                 Adjust Pacing Strategy →
@@ -106,11 +187,21 @@ const LearningPreferencesView = () => {
 
         {/* Action Buttons */}
         <div className="flex justify-end items-center gap-4 pt-4 border-t border-slate-100">
-          <button className="text-sm font-semibold text-slate-500 hover:text-slate-800 transition-colors">
+          <button 
+            type="button"
+            onClick={() => { setDepth('standard'); setStyles({ visual: true, interactive: true, auditory: false }); }}
+            className="text-sm font-semibold text-slate-500 hover:text-slate-800 transition-colors"
+          >
             Reset Defaults
           </button>
-          <button className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-6 rounded-lg transition-colors shadow-sm">
-            Save Preferences
+          <button 
+            onClick={handleSave}
+            disabled={isSaving}
+            className={`font-semibold py-2.5 px-6 rounded-lg transition-colors shadow-sm ${
+              isSaving ? 'bg-indigo-400 text-white cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+            }`}
+          >
+            {isSaving ? 'Saving...' : 'Save Preferences'}
           </button>
         </div>
       </div>
@@ -128,21 +219,21 @@ const LearningPreferencesView = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="flex justify-between items-center p-4 rounded-xl border border-slate-100 bg-slate-50">
-            <div className="flex items-center gap-3">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-              <span className="font-bold text-slate-700 text-sm">Mathematics</span>
-            </div>
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">sss 2 • Term 1</span>
-          </div>
-          
-          <div className="flex justify-between items-center p-4 rounded-xl border border-slate-100 bg-slate-50">
-            <div className="flex items-center gap-3">
-              <span className="w-2.5 h-2.5 rounded-full bg-indigo-500"></span>
-              <span className="font-bold text-slate-700 text-sm">English Language</span>
-            </div>
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">sss 2 • Term 1</span>
-          </div>
+          {enrolledSubjects.length > 0 ? (
+            enrolledSubjects.map((sub, idx) => (
+              <div key={idx} className="flex justify-between items-center p-4 rounded-xl border border-slate-100 bg-slate-50">
+                <div className="flex items-center gap-3">
+                  <span className={`w-2.5 h-2.5 rounded-full ${idx % 2 === 0 ? 'bg-emerald-500' : 'bg-indigo-500'}`}></span>
+                  <span className="font-bold text-slate-700 text-sm capitalize">{sub}</span>
+                </div>
+                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                  {currentLevel} • Term {currentTerm}
+                </span>
+              </div>
+            ))
+          ) : (
+             <p className="text-sm text-slate-500 col-span-2">No subjects selected yet. Update them in your class setup.</p>
+          )}
         </div>
       </div>
 
@@ -150,18 +241,15 @@ const LearningPreferencesView = () => {
   );
 };
 
-/* --- Sub-Components to keep the main file clean --- */
+/* --- Internal Sub-Components --- */
 
 const DepthCard = ({ id, title, desc, icon, currentDepth, setDepth }) => {
   const isSelected = currentDepth === id;
-  
   return (
     <button 
       onClick={() => setDepth(id)}
       className={`text-left p-5 rounded-xl border-2 transition-all relative ${
-        isSelected 
-          ? 'border-indigo-600 bg-indigo-50/30' 
-          : 'border-slate-200 hover:border-indigo-300 bg-white'
+        isSelected ? 'border-indigo-600 bg-indigo-50/30' : 'border-slate-200 hover:border-indigo-300 bg-white'
       }`}
     >
       {isSelected && (
@@ -188,8 +276,6 @@ const ToggleRow = ({ title, desc, icon, isOn, onToggle }) => {
           <p className="text-xs text-slate-500 mt-0.5">{desc}</p>
         </div>
       </div>
-      
-      {/* Custom Tailwind Toggle Switch */}
       <button 
         onClick={onToggle}
         className={`w-12 h-6 rounded-full relative transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 ${

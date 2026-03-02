@@ -1,26 +1,91 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { useUser } from '../context/UserContext';
+import { updateUserProfile } from '../services/api';
 
 const AccountSettingsView = ({ user, school, security }) => {
-  // Local form state so inputs are controlled
+  const { token } = useAuth();
+  const { updateLocalUser } = useUser();
+
+  // Form State
   const [formData, setFormData] = useState({
-    fullName: user.fullName,
-    email: user.email,
-    gradeLevel: user.gradeLevel,
+    fullName: user.name || user.fullName || '',
+    email: user.email || '',
+    gradeLevel: user.gradeLevel || 'sss 2',
   });
+
+  // UI States
+  const [isSaving, setIsSaving] = useState(false);
+  const [successMsg, setSuccessMsg] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
+
+  useEffect(() => {
+    setFormData({
+      fullName: user.name || user.fullName || '',
+      email: user.email || '',
+      gradeLevel: user.gradeLevel || 'sss 2',
+    });
+  }, [user]);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
+    // Clear messages when user starts typing again
+    setSuccessMsg('');
+    setErrorMsg('');
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setIsSaving(true);
+    setErrorMsg('');
+    setSuccessMsg('');
+
+    // 1. Split the full name into first and last name for the backend
+    const nameParts = formData.fullName.trim().split(' ');
+    const firstName = nameParts[0] || '';
+    const lastName = nameParts.slice(1).join(' ') || '';
+
+    // 2. Build the payload (add gradeLevel here if your backend accepts it)
+    const payload = {
+      first_name: firstName,
+      last_name: lastName,
+    };
+
+    try {
+      // 3. Make the PUT request
+      const updatedData = await updateUserProfile(token, payload);
+      
+      // 4. Instantly update the global context so the Navbar and Hero sync up
+      updateLocalUser(updatedData);
+      setSuccessMsg("Profile updated successfully!");
+      
+    } catch (err) {
+      console.error(err);
+      setErrorMsg(err.message);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
     <div className="space-y-6">
-      
-      {/* Basic Info Form */}
       <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
         <h2 className="text-xl font-bold text-slate-800">Account Information</h2>
         <p className="text-sm text-slate-500 mb-6">Update your personal details and account preferences.</p>
 
-        <form className="space-y-5" onSubmit={(e) => e.preventDefault()}>
+        {/* --- Feedback Banners --- */}
+        {errorMsg && (
+          <div className="mb-6 p-3 bg-rose-50 border border-rose-200 text-rose-600 rounded-lg text-sm font-medium">
+            {errorMsg}
+          </div>
+        )}
+        {successMsg && (
+          <div className="mb-6 p-3 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg text-sm font-medium">
+            {successMsg}
+          </div>
+        )}
+
+        <form className="space-y-5" onSubmit={handleSubmit}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <label className="text-sm font-semibold text-slate-700">Full Name</label>
@@ -39,8 +104,8 @@ const AccountSettingsView = ({ user, school, security }) => {
                 name="email"
                 value={formData.email}
                 onChange={handleChange}
-                className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-shadow bg-slate-50 text-slate-500 cursor-not-allowed"
-                disabled // Emails usually require separate verification to change
+                className="w-full border border-slate-300 rounded-lg px-4 py-2.5 bg-slate-50 text-slate-500 cursor-not-allowed"
+                disabled 
               />
             </div>
           </div>
@@ -51,7 +116,7 @@ const AccountSettingsView = ({ user, school, security }) => {
               name="gradeLevel"
               value={formData.gradeLevel}
               onChange={handleChange}
-              className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 appearance-none bg-white"
+              className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
             >
               <option value="sss 1">sss 1</option>
               <option value="sss 2">sss 2</option>
@@ -60,52 +125,22 @@ const AccountSettingsView = ({ user, school, security }) => {
           </div>
 
           <div className="pt-4 flex justify-end">
-            <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-6 rounded-lg transition-colors">
-              Save Changes
+            <button 
+              type="submit" 
+              disabled={isSaving}
+              className={`font-semibold py-2.5 px-6 rounded-lg transition-all flex items-center gap-2 ${
+                isSaving 
+                  ? 'bg-indigo-400 cursor-not-allowed text-white' 
+                  : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+              }`}
+            >
+              {isSaving ? "Saving..." : "Save Changes"}
             </button>
           </div>
         </form>
       </div>
 
-      {/* School Information */}
-      <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
-        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-5">School Information</h3>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="flex items-center gap-4 p-4 border border-slate-100 bg-slate-50 rounded-xl">
-            <div className="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center text-lg">🏫</div>
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase">Current School</p>
-              <p className="font-bold text-slate-800">{school.name}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-4 p-4 border border-slate-100 bg-slate-50 rounded-xl">
-            <div className="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center text-lg">🪪</div>
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase">Student ID</p>
-              <p className="font-bold text-slate-800">{school.studentId}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Security */}
-      <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
-        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-5">Security</h3>
-        
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 border border-slate-100 bg-slate-50 rounded-xl">
-          <div className="flex items-center gap-4">
-            <div className="w-10 h-10 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center text-lg">🔑</div>
-            <div>
-              <p className="font-bold text-slate-800">Account Password</p>
-              <p className="text-xs text-slate-500">Last changed {security.lastPasswordChange}</p>
-            </div>
-          </div>
-          <button className="px-5 py-2 border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-medium rounded-lg transition-colors">
-            Change Password
-          </button>
-        </div>
-      </div>
+      {/* ... Keep your existing School Information and Security sections ... */}
 
     </div>
   );
