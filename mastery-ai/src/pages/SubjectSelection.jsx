@@ -1,24 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext'; // <-- Import Auth
-import { useUser } from '../context/UserContext'; // <-- Import User Context
+import { useAuth } from '../context/AuthContext';
+import { useUser } from '../context/UserContext';
 
 const SubjectSelection = () => {
   const navigate = useNavigate();
-  const location = useLocation(); // <-- Grab the grade/term passed from the previous page!
+  const location = useLocation();
   const { token } = useAuth();
-  const { updateLocalStudent } = useUser();
+  const { studentData, userData, updateLocalStudent } = useUser();
   const apiUrl = import.meta.env.VITE_API_URL || 'https://mastery-backend-7xe8.onrender.com/api/v1';
   
   const [selectedSubjects, setSelectedSubjects] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [availableSubjects, setAvailableSubjects] = useState([]);
   const [isFetchingMetadata, setIsFetchingMetadata] = useState(true);
-  const [errorMsg, setErrorMsg] = useState(""); // <-- Added error state
+  const [errorMsg, setErrorMsg] = useState("");
 
   useEffect(() => {
     // --- FRONTEND DEMO MODE: Hardcoded Subjects ---
-    // Keep this until you have an endpoint for fetching dynamic subjects
     setTimeout(() => {
       setAvailableSubjects([
         { id: 'math', label: 'MATHEMATICS', icon: '➕', description: 'Algebra, Geometry, and Data Analysis tailored to you.' },
@@ -46,50 +45,91 @@ const SubjectSelection = () => {
     setIsLoading(true);
     setErrorMsg("");
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+    let activeId = studentData?.user_id || userData?.id;
 
     try {
-      // 1. Build the payload, blending the previous page's data with the new subjects
-      const payload = {
-        subjects: selectedSubjects,
-        ...(location.state?.grade && { sss_level: location.state.grade }),
-        ...(location.state?.term && { current_term: parseInt(location.state.term, 10) })
-      };
+      // 1. BULLETPROOF CHECK: Fallback to /users/me
+      if (!activeId) {
+        const userMeResponse = await fetch(`${apiUrl}/users/me`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
 
-      // 2. Make the real backend request
-      // Note: Using PUT here to update the profile we started on the previous page
-      const response = await fetch(`${apiUrl}/students/profile/setup`, {
-        method: 'PUT', 
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload),
-        signal: controller.signal
-      });
+        if (!userMeResponse.ok) {
+          throw new Error("Could not verify user session. Please log in again.");
+        }
 
-      clearTimeout(timeoutId);
-
-      // If the backend strictly requires POST for this endpoint, change 'PUT' to 'POST' above.
-      if (!response.ok) {
-        const errData = await response.json().catch(() => null);
-        throw new Error(errData?.detail || "Failed to save your subjects. Please try again.");
+        const userMeData = await userMeResponse.json();
+        activeId = userMeData.id; 
       }
 
-      // 3. Instantly update the global context with the newly selected subjects
-      updateLocalStudent({ subjects: selectedSubjects });
+      if (!activeId) {
+        throw new Error("User ID is missing. Please contact support or try logging in again.");
+      }
 
-      // 4. Move to the next onboarding step
+      const grade = location.state?.grade || studentData?.sss_level || "SSS1";
+      const term = parseInt(location.state?.term || studentData?.current_term || 1, 10);
+
+      // 2. Build Full Payload
+      const payload = {
+        student_id: activeId,
+        sss_level: grade,
+        current_term: term,
+        term: term, 
+        subjects: selectedSubjects
+      };
+
+      const headers = {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      };
+
+      // 3. Attempt POST (Creation) first
+      let response = await fetch(`${apiUrl}/students/profile/setup`, {
+        method: 'POST', 
+        headers: headers,
+        body: JSON.stringify(payload)
+      });
+
+      // 4. THE FALLBACK: If it fails, check if it's because it already exists
+      if (!response.ok) {
+        const errData = await response.json();
+        const readableError = errData.detail && Array.isArray(errData.detail) 
+          ? errData.detail.map(e => `${e.loc[e.loc.length - 1]}: ${e.msg}`).join(", ")
+          : errData.detail || "Failed to save your subjects.";
+
+        // If the backend complains the profile exists, switch to PUT and try again!
+        if (readableError.toLowerCase().includes("already exists")) {
+          response = await fetch(`${apiUrl}/students/profile`, {
+            method: 'PUT', // Change method to PUT to update instead of create
+            headers: headers,
+            body: JSON.stringify(payload)
+          });
+
+          // If the PUT also fails, throw the new error
+          if (!response.ok) {
+             const putErrData = await response.json();
+             const putReadableError = putErrData.detail && Array.isArray(putErrData.detail) 
+                ? putErrData.detail.map(e => `${e.loc[e.loc.length - 1]}: ${e.msg}`).join(", ")
+                : putErrData.detail || "Failed to update your subjects.";
+             throw new Error(putReadableError);
+          }
+        } else {
+          // If it failed for a different reason (like missing data), throw the original error
+          throw new Error(readableError);
+        }
+      }
+
+      // 5. Update Context & Navigate
+      updateLocalStudent({ subjects: selectedSubjects });
       navigate('/learning-preferences');
 
     } catch (err) {
       console.error("Subject Save Error:", err);
-      if (err.name === 'AbortError') {
-        setErrorMsg("The server is taking too long to respond. Please try again.");
-      } else {
-        setErrorMsg(err.message);
-      }
+      setErrorMsg(err.message);
     } finally {
       setIsLoading(false);
     }
@@ -109,9 +149,8 @@ const SubjectSelection = () => {
         </p>
       </div>
 
-      {/* Display backend errors if saving fails */}
       {errorMsg && (
-        <div className="mb-8 max-w-xl mx-auto p-4 bg-rose-50 border border-rose-200 text-rose-600 rounded-xl text-sm font-medium text-center">
+        <div className="mb-8 max-w-xl mx-auto p-4 bg-rose-50 border border-rose-200 text-rose-600 rounded-xl text-sm font-medium text-center animate-bounce">
           {errorMsg}
         </div>
       )}

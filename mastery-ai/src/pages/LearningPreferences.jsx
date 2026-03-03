@@ -7,7 +7,7 @@ const LearningPreferences = () => {
   const navigate = useNavigate();
   const { token } = useAuth();
   const { updateLocalStudent } = useUser();
-  const apiUrl = import.meta.env.VITE_API_URL || 'https://mastery-backend-7xe8.onrender.com/api/v1';
+  const apiUrl = import.meta.env.VITE_API_URL;
 
   const [selectedStyles, setSelectedStyles] = useState([]);
   const [isLoading, setIsLoading] = useState(false);

@@ -150,7 +150,7 @@ const LoginPage = () => {
         <div className="w-full max-w-md space-y-8">
           <div>
             <h1 className="text-4xl font-black text-slate-900 tracking-tight">Welcome Back</h1>
-            <p className="text-slate-500 mt-3 text-sm leading-relaxed">Log in to continue your mastery journey on Spark AI.</p>
+            <p className="text-slate-500 mt-3 text-sm leading-relaxed">Log in to continue your mastery journey on MasteryAI.</p>
           </div>
 
           {error && (
@@ -170,7 +170,7 @@ const LoginPage = () => {
                 </span>
                 <input 
                   type="email" 
-                  placeholder="student@spark.edu" 
+                  placeholder="student@masteryai.edu" 
                   value={formData.email} 
                   onChange={(e) => handleInputChange('email', e.target.value)} 
                   className={`w-full pl-12 pr-4 py-3.5 bg-white border rounded-xl text-sm focus:outline-none focus:ring-2 transition-all ${formErrors.email ? 'border-rose-500 focus:ring-rose-500/20 text-rose-900 placeholder:text-rose-300' : 'border-slate-200 focus:ring-[#6b46c1]'}`}
@@ -220,7 +220,7 @@ const LoginPage = () => {
             </GoogleOAuthProvider>
           </div>
 
-          <p className="text-center text-sm text-slate-500 font-medium">New to Spark? <Link to="/register" className="text-[#6b46c1] font-bold hover:underline">Create an account</Link></p>
+          <p className="text-center text-sm text-slate-500 font-medium">New to MasteryAI? <Link to="/register" className="text-[#6b46c1] font-bold hover:underline">Create an account</Link></p>
         </div>
       </div>
     </div>

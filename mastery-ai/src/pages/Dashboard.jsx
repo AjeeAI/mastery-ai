@@ -1,5 +1,7 @@
+import React, { useState, useEffect } from 'react';
 import { Flame, Star, CheckCircle2, Clock } from 'lucide-react';
-import { useUser } from '../context/UserContext'; // <-- 1. Import our new global state
+import { useAuth } from '../context/AuthContext';
+import { useUser } from '../context/UserContext'; 
 
 import Header from '../components/Header';
 import HeroSection from '../components/HeroSection';
@@ -11,27 +13,85 @@ import Leaderboard from '../components/Leaderboard';
 import Footer from '../components/Footer';
 
 export default function Dashboard() {
-    // <-- 2. Grab the user data instantly! -->
-    const { userData } = useUser(); 
+    const { token } = useAuth();
+    const { userData, studentData } = useUser(); 
 
-    // Safely construct the full name for the leaderboard
+    // Dynamic User Data
     const fullName = userData 
       ? `${userData.first_name || ''} ${userData.last_name || ''}`.trim() 
       : 'Student';
+    const activeId = studentData?.user_id || userData?.id;
 
-    // Mock API data for LearningMap nodes
-    const apiData = [
-        { id: 1, status: "mastered", title: "Number Bases" },
-        { id: 2, status: "mastered", title: "Fractions & Decimals" },
-        { id: 3, status: "current", title: "Algebraic Expressions", details: "64% MASTERY • NEEDS FOCUS" },
-        { id: 4, status: "locked", title: "Linear Equations" },
-        { id: 5, status: "locked", title: "Word Problems" }
-    ];
+    // Grab the student's actual level, term, and their first enrolled subject
+    const currentLevel = studentData?.sss_level || 'SSS1';
+    const currentTerm = studentData?.current_term || 1; // <-- Now capturing the Term!
+    const currentSubject = studentData?.subjects?.[0] || 'math'; // Defaults to math if missing
 
+    // State for the Learning Map
+    const [mapNodes, setMapNodes] = useState([]);
+    const [isLoadingMap, setIsLoadingMap] = useState(true);
+
+    const apiUrl = import.meta.env.VITE_API_URL;
+
+    // --- Fetch Learning Map Data ---
+    // --- Fetch Learning Map Data ---
+    useEffect(() => {
+        // 1. If we don't have the ID or Token yet, don't fetch, just wait!
+        // The component will automatically re-run this effect once they load.
+        if (!activeId || !token) {
+            return; 
+        }
+
+        const fetchLearningMap = async () => {
+            setIsLoadingMap(true); // 2. Start the spinner only when we are actually fetching
+            
+            try {
+                const queryParams = new URLSearchParams({
+                    student_id: activeId,
+                    subject: currentSubject,
+                    sss_level: currentLevel,
+                    term: currentTerm,
+                    view: 'topic' 
+                });
+
+                const response = await fetch(`${apiUrl}/learning/path/map/visual?${queryParams}`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error("Failed to fetch learning map");
+                }
+
+                const data = await response.json();
+                setMapNodes(data.nodes || data);
+
+            } catch (err) {
+                console.error("Map fetch error:", err);
+                
+                // Fallback to demo data so the UI doesn't break
+                setMapNodes([
+                    { id: 1, status: "mastered", title: "Number Bases" },
+                    { id: 2, status: "mastered", title: "Fractions & Decimals" },
+                    { id: 3, status: "current", title: "Algebraic Expressions", details: "64% MASTERY • NEEDS FOCUS" },
+                    { id: 4, status: "locked", title: "Linear Equations" },
+                    { id: 5, status: "locked", title: "Word Problems" }
+                ]);
+            } finally {
+                setIsLoadingMap(false); // 3. Guarantee the spinner turns off!
+            }
+        };
+
+        fetchLearningMap();
+    }, [activeId, currentSubject, currentLevel, currentTerm, token, apiUrl]);
+    
+    // Mock API data for Leaderboard
     const apiLeaderboardData = [
         { id: "u1", rank: 1, name: "Sarah Jenkins", points: "4,250" },
         { id: "u2", rank: 2, name: "Marcus Thorne", points: "3,900" },
-        // <-- 3. Inject the real user's name into the leaderboard! -->
         { id: "u3", rank: 3, name: fullName, points: "3,450", isCurrentUser: true } 
     ];
 
@@ -39,10 +99,9 @@ export default function Dashboard() {
         <div className="min-h-screen bg-[#F8FAFC] font-sans">
             <main className="max-w-9xl mx-auto px-6 py-8">
                 <div className="flex flex-col lg:flex-row gap-6 mb-8">
-                    {/* <-- 4. Removed userName prop because HeroSection now handles it internally! --> */}
                     <HeroSection 
                         recentModules={3} 
-                        currentSubject="SSS 2 Mathematics" 
+                        currentSubject={`${currentLevel} ${currentSubject.charAt(0).toUpperCase() + currentSubject.slice(1)}`} 
                         hasStartedLearning={true}
                     />
                     <AIRecommendation/>
@@ -68,7 +127,15 @@ export default function Dashboard() {
                     />
                 </div>
 
-                <LearningMap classLevel="SSS 2" subject="Mathematics" nodes={apiData} />
+                {/* Dynamically pass the fetched nodes to the LearningMap */}
+                {isLoadingMap ? (
+                    <div className="w-full bg-white rounded-2xl shadow-sm border border-slate-200 p-12 text-center text-slate-500 mb-8 animate-pulse">
+                        <div className="w-8 h-8 mx-auto border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+                        Generating your personalized learning path...
+                    </div>
+                ) : (
+                    <LearningMap classLevel={currentLevel} subject={currentSubject} nodes={mapNodes} />
+                )}
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     <LearningTasks />

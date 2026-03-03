@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { useUser } from '../context/UserContext'; //
+import { useUser } from '../context/UserContext';
 
 const ClassSelection = () => {
   const [selectedGrade, setSelectedGrade] = useState('');
@@ -13,10 +13,9 @@ const ClassSelection = () => {
   const navigate = useNavigate();
   const { token } = useAuth();
   
-  // FIXED: Destructure from useUser to avoid ReferenceError
   const { studentData, userData, updateLocalStudent } = useUser(); 
   
-  const apiUrl = import.meta.env.VITE_API_URL || 'https://mastery-backend-7xe8.onrender.com/api/v1';
+  const apiUrl = import.meta.env.VITE_API_URL;
 
   useEffect(() => {
     // Simulated fetch for available grades
@@ -43,17 +42,33 @@ const ClassSelection = () => {
     setIsLoading(true);
     setErrorMsg("");
 
-    // FIXED: Safely identify the active ID from Context
-    const activeId = studentData?.user_id || userData?.id;
-
-    if (!activeId) {
-      setErrorMsg("User session not found. Please refresh and log in again.");
-      setIsLoading(false);
-      return;
-    }
+    let activeId = studentData?.user_id || userData?.id;
 
     try {
-      // The backend requires specific fields for profile setup
+      // BULLETPROOF CHECK: If the ID isn't in state, fetch it directly from /users/me
+      if (!activeId) {
+        const userMeResponse = await fetch(`${apiUrl}/users/me`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!userMeResponse.ok) {
+          throw new Error("Could not verify user session. Please log in again.");
+        }
+
+        const userMeData = await userMeResponse.json();
+        activeId = userMeData.user_id; // Extract the ID from the /users/me response
+      }
+
+      // If it's STILL missing after the fetch, completely abort
+      if (!activeId) {
+        throw new Error("User ID is missing. Please contact support or try logging in again.");
+      }
+
+      // Now we confidently hit the setup endpoint
       const response = await fetch(`${apiUrl}/students/profile/setup`, {
         method: 'POST',
         headers: {
@@ -61,20 +76,20 @@ const ClassSelection = () => {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          student_id: activeId,               // REQUIRED
-          sss_level: selectedGrade,           // REQUIRED
-          current_term: parseInt(selectedTerm, 10), // REQUIRED
-          term: parseInt(selectedTerm, 10),        // REQUIRED by validator
-          subjects: []                        // REQUIRED as an array
+          student_id: activeId,               // Guaranteed to have the ID now!
+          sss_level: selectedGrade,           
+          current_term: parseInt(selectedTerm, 10), 
+          term: parseInt(selectedTerm, 10),        
+          subjects: []                        
         }),
       });
 
       if (!response.ok) {
         const errData = await response.json();
-        // FIXED: Parse Pydantic error array into a readable string
+        
         const readableError = errData.detail && Array.isArray(errData.detail) 
           ? errData.detail.map(e => `${e.loc[e.loc.length - 1]}: ${e.msg}`).join(", ")
-          : "Failed to save setup. Please try again.";
+          : errData.detail || "Failed to save setup. Please try again.";
         throw new Error(readableError);
       }
 

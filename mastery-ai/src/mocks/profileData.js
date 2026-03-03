@@ -1,7 +1,7 @@
 export const profileData = {
   user: {
     fullName: "Alex Rivera",
-    email: "alex.rivera@spark.edu",
+    email: "alex.rivera@masteryai.edu",
     gradeLevel: "sss 2",
     league: "Gold League",
     masteryPoints: "3,450",
