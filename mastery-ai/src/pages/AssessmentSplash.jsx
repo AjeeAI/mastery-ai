@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useUser } from '../context/UserContext'; // Added to grab user data
 
 const AssessmentSplash = () => {
   const navigate = useNavigate();
+  const { studentData } = useUser(); 
   const [isLoading, setIsLoading] = useState(false);
 
   const overviewItems = [
@@ -25,10 +27,20 @@ const AssessmentSplash = () => {
 
   const handleStartAssessment = () => {
     setIsLoading(true);
+    
+    // Simulate a brief loading state for UX
     setTimeout(() => {
       setIsLoading(false);
-      // Change this line to point to Favour's quiz!
-      navigate('/quiz/diagnostic-1'); 
+      
+      // OPTION A: If your backend has a specific "Global Diagnostic" UUID, put it here:
+      // const diagnosticTopicId = "YOUR-UUID-HERE";
+      // navigate(`/quiz/${diagnosticTopicId}`, { state: { defaultPurpose: 'diagnostic' } });
+
+      // OPTION B: (Recommended for now) Route them to the Dashboard to pick their subject
+      // Since a quiz requires a specific topic ID, the best flow is to drop them in the Dashboard 
+      // so they can select their first subject and click "Take Diagnostic" there.
+      navigate('/dashboard'); 
+      
     }, 600);
   };
 
@@ -107,7 +119,7 @@ const AssessmentSplash = () => {
           </button>
           
           <button 
-            onClick={() => navigate('/mastery-path')}
+            onClick={() => navigate('/dashboard')}
             disabled={isLoading}
             className="w-full py-2 text-sm font-bold transition-colors hover:opacity-70 disabled:opacity-50"
             style={{ color: '#9CA3AF' }}

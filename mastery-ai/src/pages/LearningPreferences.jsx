@@ -1,39 +1,42 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext'; // <-- Import Auth Context
-import { useUser } from '../context/UserContext'; // <-- Import User Context
+import { useAuth } from '../context/AuthContext'; 
+import { useUser } from '../context/UserContext'; 
 
 const LearningPreferences = () => {
   const navigate = useNavigate();
   const { token } = useAuth();
-  const { updateLocalStudent } = useUser();
+  const { userData, studentData, updateLocalStudent } = useUser(); 
   const apiUrl = import.meta.env.VITE_API_URL;
+
+  // 👇 Safely grab the ID from either context location
+  const activeId = studentData?.student_id || userData?.user_id; 
 
   const [selectedStyles, setSelectedStyles] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState(""); // <-- Added error state for the UI
+  const [errorMsg, setErrorMsg] = useState(""); 
 
   const styles = [
     {
-      id: 'Step-by-step explanations',
+      id: 'step_by_step',
       icon: '🔢',
       title: 'Step-by-step explanations',
       desc: "Focus on logic and order. We'll break down complex topics into bite-sized, sequential pieces.",
     },
     {
-      id: 'Examples first',
+      id: 'examples_first',
       icon: '💡',
       title: 'Examples first',
       desc: "Learn by seeing how it's done. We'll show you solved problems before diving into the theory.",
     },
     {
-      id: 'Practice questions',
+      id: 'practice_heavy',
       icon: '📝',
       title: 'Practice questions',
       desc: "Learn by doing. We'll give you challenges immediately to test your understanding as you go.",
     },
     {
-      id: 'Visual breakdowns',
+      id: 'visual',
       icon: '📊',
       title: 'Visual breakdowns',
       desc: "Use diagrams and charts. We'll prioritize infographics, mind maps, and visual aids for learning.",
@@ -54,6 +57,12 @@ const LearningPreferences = () => {
       return;
     }
 
+    // 👇 Safety Guard: Stop if we lost the user's ID
+    if (!activeId) {
+      setErrorMsg("Error: Missing User ID. Please refresh the page or log in again.");
+      return;
+    }
+
     setIsLoading(true);
     setErrorMsg("");
 
@@ -61,16 +70,28 @@ const LearningPreferences = () => {
     const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
 
     try {
-      // 1. Make the real backend request
-      // Note: We use PUT since we are continuing to update the profile we started
-      const response = await fetch(`${apiUrl}/students/profile/setup`, {
+      // 1. Map the selected array to the JSON object the backend expects
+      const preferencesPayload = {
+        explanation_depth: selectedStyles.includes('step_by_step') ? 'detailed' : 'standard',
+        examples_first: selectedStyles.includes('examples_first'),
+        practice_heavy: selectedStyles.includes('practice_heavy'),
+        visual_learning: selectedStyles.includes('visual'),
+        pace: 'normal'
+      };
+
+      // 2. Fire the PUT request
+      const response = await fetch(`${apiUrl}/students/profile`, {
         method: 'PUT', 
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ 
-          learning_preferences: selectedStyles // Send the selected array
+          student_id: activeId, // 👈 Now safely passing the ID
+          // sss_level: studentData?.sss_level || "SSS1", 
+          // subjects: studentData?.subjects || ["math", "english"], 
+          // term: studentData?.current_term || 1,
+          preferences: preferencesPayload 
         }),
         signal: controller.signal
       });
@@ -82,10 +103,13 @@ const LearningPreferences = () => {
         throw new Error(errData?.detail || "Failed to save your preferences. Please try again.");
       }
 
-      // 2. Instantly update the global context so the rest of the app knows their preferences
-      updateLocalStudent({ learning_preferences: selectedStyles });
+      // 3. Update local context
+      updateLocalStudent({ 
+        has_profile: true,
+        learning_preferences: preferencesPayload 
+      });
 
-      // 3. Move to the next screen!
+      // 4. Move to the next screen!
       navigate('/assessment-splash');
       
     } catch (err) {
@@ -179,7 +203,7 @@ const LearningPreferences = () => {
               cursor: isLoading ? 'wait' : (selectedStyles.length === 0 ? 'not-allowed' : 'pointer')
             }}
           >
-            {isLoading ? 'Saving...' : 'Continue'} <span>→</span>
+            {isLoading ? 'Saving...' : 'Finish Setup'} <span>→</span>
           </button>
         </div>
       </div>

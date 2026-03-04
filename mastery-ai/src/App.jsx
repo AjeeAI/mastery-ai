@@ -4,6 +4,7 @@ import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
 // --- Providers & Guards ---
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import { UserProvider } from './context/UserContext';
 
 // --- Import Layout Components ---
 import Navbar from './components/Navbar';
@@ -31,7 +32,7 @@ import AssessmentSplash from './pages/AssessmentSplash';
 // --- Import Diagnostic Pages ---
 import Completed from './pages/Completed';
 import InProgress from './pages/InProgress'; 
-import Quizzes from './pages/Quizzes';
+import Quizzes from './pages/Quizzes'; // (Old file, consider deleting if no longer used)
 
 // --- Import Dashboard & Lesson Flow ---
 import Dashboard from './pages/Dashboard';
@@ -39,7 +40,9 @@ import CoursePage from './pages/CoursePage';
 import LessonPage from './pages/LessonPage';
 import ModuleQuizPage from './pages/ModuleQuizPage';
 import QuizResult from './pages/QuizResult';
-import { UserProvider } from './context/UserContext';
+
+// 👇 THE FIX: IMPORT YOUR NEW QUIZ PAGE 👇
+import QuizPage from './pages/QuizPage';
 
 
 /* --- Layout Wrappers --- */
@@ -87,15 +90,16 @@ function App() {
             <Route element={<StudentLayout />}>
               <Route path="/dashboard" element={<Dashboard />} />
               
-              {/* 👇 THE FIX IS HERE: Added /:subject and /:topicId 👇 */}
               <Route path="/course/:subject" element={<CoursePage />} /> 
               <Route path="/lesson/:topicId" element={<LessonPage />} />
               
               <Route path="/mastery-path" element={<ExplainMistakePage />} />
               <Route path="/profile" element={<ProfilePage />} />
               
-              {/* Diagnostic Flow */}
-              <Route path="/quiz/:quizId" element={<Quizzes />} />
+              {/* Diagnostic & Mastery Quiz Flow */}
+              {/* This route perfectly matches the LessonPage button: navigate(`/quiz/${topicId}`) */}
+              <Route path="/quiz/:topicId" element={<QuizPage />} />
+              
               <Route path="/quiz/:quizId/in-progress" element={<InProgress />} />
               <Route path="/quiz/:quizId/completed" element={<Completed />} />
 

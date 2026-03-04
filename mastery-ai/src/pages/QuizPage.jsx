@@ -1,228 +1,367 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { useUser } from '../context/UserContext';
+import { Target, Clock, Brain, CheckCircle, AlertCircle, ArrowRight, ArrowLeft, BarChart2 } from 'lucide-react';
 
-// --- Dummy Data ---
-// In the future, you will fetch this from your FastAPI backend
-const mockQuestions = [
-  {
-    id: 1,
-    category: "MATHEMATICS • ALGEBRA",
-    prompt: "Solve for x in the following equation:",
-    // We use a small render function here to color the 'x' purple like your design
-    equation: (
-      <>
-        3<span className="text-[#6b46c1]">x</span> + 12 = 27
-      </>
-    ),
-    options: [
-      { id: 'A', label: 'x = 5' },
-      { id: 'B', label: 'x = 13' },
-      { id: 'C', label: 'x = 9' },
-      { id: 'D', label: 'x = 15' }
-    ]
-  },
-  {
-    id: 2,
-    category: "MATHEMATICS • GEOMETRY",
-    prompt: "Find the area of a circle with radius r:",
-    equation: (
-      <>
-        r = 5<span className="text-[#6b46c1]">cm</span>
-      </>
-    ),
-    options: [
-      { id: 'A', label: '25π cm²' },
-      { id: 'B', label: '10π cm²' },
-      { id: 'C', label: '5π cm²' },
-      { id: 'D', label: '100π cm²' }
-    ]
-  },
-  {
-    id: 3,
-    category: "MATHEMATICS • FRACTIONS",
-    prompt: "Simplify the following expression:",
-    equation: (
-      <>
-        1/2 + 3/4 = <span className="text-[#6b46c1]">?</span>
-      </>
-    ),
-    options: [
-      { id: 'A', label: '4/6' },
-      { id: 'B', label: '5/4' },
-      { id: 'C', label: '1' },
-      { id: 'D', label: '3/8' }
-    ]
-  }
-];
+// --- Import your custom components ---
+import Breadcrumbs from "../components/BreadCrumbs";
+import ScoreSummary from "../components/ScoreSummary";
+import ConceptCard from "../components/ConceptCard";
+import AITutorInsights from "../components/AITutorInsights";
+import PathProgress from "../components/PathProgress";
+import FooterActions from "../components/FooterActions";
 
 const QuizPage = () => {
   const navigate = useNavigate();
-  
-  // State to track quiz progress
+  // Ensure your App.jsx has this route: <Route path="/quiz/:topicId" element={<QuizPage />} />
+  const { topicId } = useParams();
+  const { token } = useAuth();
+  const { studentData, userData } = useUser();
+  const activeId = studentData?.user_id || userData?.id;
+
+  const currentSubject = localStorage.getItem('active_subject') || studentData?.subjects?.[0] || 'math';
+  const currentLevel = studentData?.sss_level || 'SSS3';
+  const currentTerm = studentData?.current_term || 1;
+
+  const apiUrl = import.meta.env.VITE_API_URL || 'https://mastery-backend-7xe8.onrender.com/api/v1';
+
+  // --- LIFECYCLE STATES ---
+  const [phase, setPhase] = useState('setup'); // 'setup' | 'generating' | 'active' | 'submitting' | 'results'
+  const [error, setError] = useState("");
+
+  // Setup Config
+  const [difficulty, setDifficulty] = useState('medium');
+  const [purpose, setPurpose] = useState('practice');
+
+  // Active Quiz Data
+  const [quizData, setQuizData] = useState(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState(null);
-  const [answers, setAnswers] = useState({}); // Stores all user answers
+  const [answers, setAnswers] = useState({});
+  const [startTime, setStartTime] = useState(null);
 
-  const currentQuestion = mockQuestions[currentIndex];
-  const isLastQuestion = currentIndex === mockQuestions.length - 1;
-  const progressPercentage = ((currentIndex + 1) / mockQuestions.length) * 100;
+  // Formatted Results Data (Tailored for your custom components)
+  const [formattedResults, setFormattedResults] = useState(null);
 
-  // Handlers
-  const handleSelectOption = (optionId) => {
-    setSelectedOption(optionId);
+  // ======================================================================
+  // 1. GENERATE QUIZ
+  // ======================================================================
+  const handleGenerateQuiz = async () => {
+    // 👇 ADDED SAFETY CHECK HERE
+    if (!topicId) {
+      setError("Missing Topic ID! Please go back to the lesson and click 'Take Mastery Quiz' again.");
+      return;
+    }
+
+    setPhase('generating');
+    setError("");
+
+    try {
+      const response = await fetch(`${apiUrl}/learning/quizzes/generate`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          student_id: activeId,
+          subject: currentSubject,
+          sss_level: currentLevel,
+          term: currentTerm,
+          topic_id: topicId, // Now we guarantee this exists!
+          purpose: purpose,
+          difficulty: difficulty,
+          num_questions: 5 
+        })
+      });
+
+      if (!response.ok) throw new Error("Failed to generate quiz. Please try again.");
+
+      const data = await response.json();
+      setQuizData(data);
+      setStartTime(Date.now());
+      setPhase('active');
+    } catch (err) {
+      setError(err.message);
+      setPhase('setup');
+    }
   };
 
+  // ======================================================================
+  // 2. SUBMIT QUIZ & MAP RESULTS TO YOUR COMPONENTS
+  // ======================================================================
+  const submitQuizAnswers = async (finalAnswers) => {
+    setPhase('submitting');
+    setError("");
+
+    const timeTakenSeconds = Math.floor((Date.now() - startTime) / 1000);
+    const formattedAnswers = Object.entries(finalAnswers).map(([qId, ans]) => ({
+      question_id: qId,
+      answer: ans
+    }));
+
+    try {
+      // Step A: Submit Answers
+      const submitRes = await fetch(`${apiUrl}/learning/quizzes/${quizData.quiz_id}/submit`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ student_id: activeId, answers: formattedAnswers, time_taken_seconds: timeTakenSeconds })
+      });
+
+      if (!submitRes.ok) throw new Error("Failed to submit quiz.");
+      const submitData = await submitRes.json();
+      const attemptId = submitData.attempt_id;
+
+      // Step B: Fetch Detailed Results
+      const resultsRes = await fetch(`${apiUrl}/learning/quizzes/${quizData.quiz_id}/results?student_id=${activeId}&attempt_id=${attemptId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (!resultsRes.ok) throw new Error("Submitted successfully, but failed to load results.");
+      const resultsJson = await resultsRes.json();
+
+      // Step C: EXACT DATA MAPPING FOR YOUR CUSTOM COMPONENTS
+      const finalScorePercentage = Math.round((resultsJson.score || 0) * 100);
+      const minutes = Math.floor(timeTakenSeconds / 60);
+      const seconds = timeTakenSeconds % 60;
+      const totalQs = quizData.questions.length;
+      
+      // Calculate wrong concepts for struggle points
+      const wrongConcepts = (resultsJson.concept_breakdown || [])
+        .filter(c => !c.is_correct)
+        .map(c => `**${c.concept_id}**`);
+
+      const mappedApiData = {
+        paths: {
+            classLevel: currentLevel,
+            topic: currentSubject
+        },
+        summary: {
+            studentName: userData?.first_name || "Student",
+            score: Math.round((resultsJson.score || 0) * totalQs),
+            total: totalQs,
+            message: finalScorePercentage >= 70 ? "Great job! You've shown strong mastery of these concepts." : "Good effort! Review the insights to improve your mastery.",
+            timeTaken: `${minutes}m ${seconds}s`,
+            accuracy: finalScorePercentage,
+            xpEarned: submitData.xp_awarded || Math.round(finalScorePercentage * 2.5)
+        },
+        concepts: (resultsJson.concept_breakdown || []).map((c, i) => ({
+            id: i + 1,
+            title: c.concept_id.includes('fallback') ? `Concept ${i+1}` : c.concept_id,
+            mastery: c.weight_change > 0 ? 100 : Math.max(0, 50 + (c.weight_change * 10)), // Rough visual scaling
+            description: c.is_correct ? "Perfect! You understand this core concept." : "Needs review. Pay attention to the rules here."
+        })),
+        aiInsights: {
+            greeting: `Hi ${userData?.first_name || 'there'}! Here is my analysis:`,
+            strugglePoints: wrongConcepts.length > 0 ? wrongConcepts : ["None! Perfect execution."],
+            keyInsight: resultsJson.insights?.[0] || "Keep up the consistent practice to solidify these topics!",
+            prerequisite: resultsJson.insights?.[1] || "Review the foundational rules before moving forward."
+        },
+        nextTopic: resultsJson.recommended_revision_topic_id || "Next Module"
+      };
+
+      setFormattedResults(mappedApiData);
+      setPhase('results');
+      
+    } catch (err) {
+      setError(err.message);
+      setPhase('active');
+    }
+  };
+
+  // ======================================================================
+  // ACTIVE QUIZ HANDLERS
+  // ======================================================================
+  const handleSelectOption = (optionValue) => setSelectedOption(optionValue);
+
   const handleNextOrSubmit = () => {
-    // 1. Save the current answer
+    const currentQuestion = quizData.questions[currentIndex];
     const updatedAnswers = { ...answers, [currentQuestion.id]: selectedOption };
     setAnswers(updatedAnswers);
 
-    // 2. Either go to next question OR submit
-    if (isLastQuestion) {
-      console.log("Final Submission Payload:", updatedAnswers);
-      // Future: await fetch('http://localhost:8000/api/quiz/submit', ...)
-      navigate('/dashboard'); // Redirect back to dashboard after finish
-    } else {
+    const isLastQuestion = currentIndex === quizData.questions.length - 1;
+
+    if (isLastQuestion) submitQuizAnswers(updatedAnswers);
+    else {
       setCurrentIndex(currentIndex + 1);
-      // Pre-fill if they already answered this question (e.g., if they went back)
-      setSelectedOption(updatedAnswers[mockQuestions[currentIndex + 1].id] || null);
+      setSelectedOption(updatedAnswers[quizData.questions[currentIndex + 1].id] || null);
     }
   };
 
   const handleSkip = () => {
+    const currentQuestion = quizData.questions[currentIndex];
     const updatedAnswers = { ...answers, [currentQuestion.id]: "SKIPPED" };
     setAnswers(updatedAnswers);
 
-    if (isLastQuestion) {
-      console.log("Final Submission Payload (with skips):", updatedAnswers);
-      navigate('/dashboard');
-    } else {
+    const isLastQuestion = currentIndex === quizData.questions.length - 1;
+
+    if (isLastQuestion) submitQuizAnswers(updatedAnswers);
+    else {
       setCurrentIndex(currentIndex + 1);
-      setSelectedOption(updatedAnswers[mockQuestions[currentIndex + 1].id] || null);
+      setSelectedOption(updatedAnswers[quizData.questions[currentIndex + 1].id] || null);
     }
   };
 
-  return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans relative pb-12">
-      
-      {/* HEADER: Logo & Progress Bar */}
-      <header className="flex justify-between items-center px-8 py-6 w-full max-w-7xl mx-auto">
-        {/* Brand Logo */}
-        <div className="flex items-center gap-2 text-[#6b46c1] font-bold text-xl tracking-tight">
-          <div className="bg-[#6b46c1] p-1.5 rounded-lg text-white">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>
+
+  // ======================================================================
+  // RENDER: SETUP PHASE
+  // ======================================================================
+  if (phase === 'setup' || phase === 'generating') {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 font-sans">
+        <div className="max-w-md w-full bg-white rounded-3xl p-8 shadow-xl border border-slate-100">
+          <div className="w-16 h-16 bg-indigo-50 text-[#6b46c1] rounded-2xl flex items-center justify-center mb-6 mx-auto">
+            <Target size={32} />
           </div>
-          MasteryAI
+          <h1 className="text-2xl font-black text-center text-slate-900 mb-2">Configure Your Quiz</h1>
+          <p className="text-center text-slate-500 text-sm mb-8">Set your parameters to generate a targeted mastery assessment.</p>
+
+          {error && <div className="bg-rose-50 text-rose-600 p-3 rounded-lg text-sm mb-6 text-center font-bold">{error}</div>}
+
+          <div className="space-y-6">
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 block">Difficulty</label>
+              <div className="grid grid-cols-3 gap-3">
+                {['easy', 'medium', 'hard'].map(lvl => (
+                  <button key={lvl} onClick={() => setDifficulty(lvl)} disabled={phase === 'generating'} className={`py-3 rounded-xl text-xs font-bold capitalize border-2 transition-all ${difficulty === lvl ? 'border-[#6b46c1] bg-indigo-50/50 text-[#6b46c1]' : 'border-slate-100 text-slate-400 hover:border-slate-200'}`}>
+                    {lvl}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <button onClick={handleGenerateQuiz} disabled={phase === 'generating'} className="w-full py-4 bg-[#6b46c1] text-white rounded-xl font-bold hover:bg-[#5b3da6] transition-all shadow-lg shadow-indigo-200 flex justify-center items-center gap-2 mt-4 disabled:opacity-70">
+              {phase === 'generating' ? 'Compiling AI Quiz...' : 'Generate Quiz'}
+            </button>
+          </div>
         </div>
+      </div>
+    );
+  }
 
-        {/* Progress Indicator */}
-        <div className="w-64">
-          <div className="flex justify-between text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">
-            <span>Question {currentIndex + 1} of {mockQuestions.length}</span>
-            <span>{Math.round(progressPercentage)}% Complete</span>
-          </div>
-          <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
-            <div 
-              className="h-full bg-[#6b46c1] transition-all duration-500 ease-out"
-              style={{ width: `${progressPercentage}%` }}
-            ></div>
-          </div>
-        </div>
-      </header>
+  // ======================================================================
+  // RENDER: ACTIVE / SUBMITTING PHASE
+  // ======================================================================
+  if (phase === 'active' || phase === 'submitting') {
+    const currentQuestion = quizData.questions[currentIndex];
+    const isLastQuestion = currentIndex === quizData.questions.length - 1;
+    const progressPercentage = ((currentIndex) / quizData.questions.length) * 100;
 
-      {/* MAIN CONTENT AREA */}
-      <main className="flex-grow flex flex-col items-center justify-center px-4 mt-8">
-        
-        {/* Pre-Header: Category Pill */}
-        <div className="bg-indigo-50 text-[#6b46c1] px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest mb-6 border border-indigo-100/50">
-          {currentQuestion.category}
-        </div>
-
-        {/* Question Prompt */}
-        <h1 className="text-2xl md:text-3xl font-black text-slate-800 mb-8 text-center max-w-2xl">
-          {currentQuestion.prompt}
-        </h1>
-
-        {/* The White Quiz Card */}
-        <div className="bg-white rounded-3xl p-6 md:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 w-full max-w-3xl">
-          
-          {/* Equation / Focus Area */}
-          <div className="bg-slate-50/50 border border-slate-200 border-dashed rounded-2xl py-8 px-12 text-4xl font-mono text-slate-700 font-medium flex justify-center items-center mb-10 mx-auto w-max shadow-inner shadow-slate-100/50">
-            {currentQuestion.equation}
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col font-sans relative pb-12">
+        <header className="flex justify-between items-center px-8 py-6 w-full max-w-7xl mx-auto">
+          <div className="flex items-center gap-2 text-[#6b46c1] font-bold text-xl tracking-tight">
+            <div className="bg-[#6b46c1] p-1.5 rounded-lg text-white">
+              <Brain className="w-5 h-5" />
+            </div>
+            MasteryAI
           </div>
 
-          {/* Options Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10">
-            {currentQuestion.options.map((option) => {
-              const isSelected = selectedOption === option.id;
-              
-              return (
-                <div 
-                  key={option.id}
-                  onClick={() => handleSelectOption(option.id)}
-                  className={`
-                    border-2 rounded-2xl p-5 flex items-center gap-4 cursor-pointer transition-all duration-200
-                    ${isSelected 
-                      ? 'border-[#6b46c1] bg-indigo-50/30' 
-                      : 'border-slate-100 hover:border-slate-200 hover:bg-slate-50'
-                    }
-                  `}
-                >
-                  {/* Custom Radio Circle */}
-                  <div className={`
-                    w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center transition-colors
-                    ${isSelected ? 'border-[6px] border-[#6b46c1] bg-white' : 'border-2 border-slate-300 bg-white'}
-                  `}></div>
-                  
-                  {/* Option Text */}
-                  <div className="flex flex-col">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Option {option.id}</span>
-                    <span className={`text-sm font-bold ${isSelected ? 'text-[#6b46c1]' : 'text-slate-700'}`}>
-                      {option.label}
-                    </span>
+          <div className="w-64 hidden sm:block">
+            <div className="flex justify-between text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">
+              <span>Question {currentIndex + 1} of {quizData.questions.length}</span>
+              <span>{Math.round(progressPercentage)}% Complete</span>
+            </div>
+            <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
+              <div className="h-full bg-[#6b46c1] transition-all duration-500 ease-out" style={{ width: `${progressPercentage}%` }}></div>
+            </div>
+          </div>
+        </header>
+
+        <main className="flex-grow flex flex-col items-center justify-center px-4 mt-8">
+          <div className="bg-indigo-50 text-[#6b46c1] px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest mb-6 border border-indigo-100/50">
+            {currentSubject} • {currentQuestion.concept_id || 'CONCEPT'}
+          </div>
+
+          <h1 className="text-2xl md:text-3xl font-black text-slate-800 mb-8 text-center max-w-2xl leading-relaxed">
+            {currentQuestion.text}
+          </h1>
+
+          <div className="bg-white rounded-3xl p-6 md:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 w-full max-w-3xl">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10">
+              {currentQuestion.options.map((option, i) => {
+                const optValue = typeof option === 'string' ? option : option.text || option.value;
+                const isSelected = selectedOption === optValue;
+                const optionLetter = String.fromCharCode(65 + i);
+                
+                return (
+                  <div key={i} onClick={() => handleSelectOption(optValue)} className={`border-2 rounded-2xl p-5 flex items-center gap-4 cursor-pointer transition-all duration-200 ${isSelected ? 'border-[#6b46c1] bg-indigo-50/30' : 'border-slate-100 hover:border-slate-200 hover:bg-slate-50'}`}>
+                    <div className={`w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center transition-colors ${isSelected ? 'border-[6px] border-[#6b46c1] bg-white' : 'border-2 border-slate-300 bg-white'}`}></div>
+                    <div className="flex flex-col">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Option {optionLetter}</span>
+                      <span className={`text-sm font-bold ${isSelected ? 'text-[#6b46c1]' : 'text-slate-700'}`}>{optValue}</span>
+                    </div>
                   </div>
+                );
+              })}
+            </div>
+
+            <div className="flex flex-col-reverse sm:flex-row justify-between items-center gap-6 pt-2">
+              <button onClick={handleSkip} disabled={phase === 'submitting'} className="text-xs font-bold text-slate-400 hover:text-slate-600 transition-colors flex items-center gap-2 group">
+                <ArrowLeft className="w-4 h-4 text-slate-300 group-hover:text-slate-500" /> I haven't learned this yet (Skip)
+              </button>
+
+              <button onClick={handleNextOrSubmit} disabled={!selectedOption || phase === 'submitting'} className={`py-3.5 px-8 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 w-full sm:w-auto ${selectedOption ? 'bg-[#6b46c1] hover:bg-[#5b3da6] text-white shadow-lg shadow-indigo-500/25 transform hover:-translate-y-0.5' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`}>
+                {phase === 'submitting' ? 'Scoring...' : (isLastQuestion ? 'Submit Answer' : 'Next Question')}
+                {(selectedOption || isLastQuestion) && phase !== 'submitting' && <ArrowRight className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // ======================================================================
+  // RENDER: RESULTS PHASE (YOUR CUSTOM UI)
+  // ======================================================================
+  if (phase === 'results' && formattedResults) {
+    return (
+      <div className="min-h-screen bg-slate-50 font-sans">
+        <div className="max-w-7xl mx-auto px-6 py-8">
+            <Breadcrumbs classLevel={formattedResults.paths.classLevel} topic={formattedResults.paths.topic} />
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+                {/* Left Column - Main Results */}
+                <div className="lg:col-span-2 flex flex-col">
+                    <ScoreSummary data={formattedResults.summary} />
+
+                    <div className="mb-4 flex items-center gap-2 mt-8">
+                        <BarChart2 className="w-6 h-6 text-emerald-500" />
+                        <h2 className="text-xl font-bold text-gray-900">Concept Mastery Breakdown</h2>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {formattedResults.concepts.map(concept => (
+                            <ConceptCard 
+                              key={concept.id}
+                              title={concept.title}
+                              mastery={concept.mastery}
+                              description={concept.description}
+                            />
+                        ))}
+                    </div>
                 </div>
-              );
-            })}
-          </div>
 
-          {/* Card Footer Actions */}
-          <div className="flex justify-between items-center pt-2">
-            
-            {/* Skip Button */}
-            <button 
-              onClick={handleSkip}
-              className="text-xs font-bold text-slate-400 hover:text-slate-600 transition-colors flex items-center gap-2 group"
-            >
-              <svg className="w-4 h-4 text-slate-300 group-hover:text-slate-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"></path></svg>
-              I haven't learned this yet (Skip)
-            </button>
+                {/* Right Column - Sidebar */}
+                <div className="lg:col-span-1 flex flex-col">
+                    <AITutorInsights insights={formattedResults.aiInsights} />
+                    <div className="mt-6">
+                       <PathProgress nextTopic={formattedResults.nextTopic} />
+                    </div>
+                </div>
+            </div>
 
-            {/* Next / Submit Button */}
-            <button
-              onClick={handleNextOrSubmit}
-              disabled={!selectedOption} // Prevent clicking if nothing is selected
-              className={`
-                py-3.5 px-8 rounded-xl font-bold text-sm transition-all flex items-center gap-2
-                ${selectedOption 
-                  ? 'bg-[#6b46c1] hover:bg-[#5b3da6] text-white shadow-lg shadow-indigo-500/25 transform hover:-translate-y-0.5' 
-                  : 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                }
-              `}
-            >
-              {isLastQuestion ? 'Submit Answer' : 'Next'}
-              
-              {/* Arrow Icon only shows if an option is selected or if it's the submit button */}
-              {(selectedOption || isLastQuestion) && (
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
-              )}
-            </button>
-
-          </div>
+            <div className="mt-8">
+              <FooterActions />
+            </div>
         </div>
-      </main>
-    </div>
-  );
+      </div>
+    );
+  }
+
+  return null;
 };
 
 export default QuizPage;

@@ -1,6 +1,9 @@
 import React from 'react';
 
 const AIExplanationArea = ({ explanationData }) => {
+  // Safety guard in case data hasn't loaded yet
+  if (!explanationData) return null;
+
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
       {/* Header */}
@@ -14,53 +17,42 @@ const AIExplanationArea = ({ explanationData }) => {
       </div>
 
       <div className="p-6 space-y-8">
-        {/* Misconception */}
+        
+        {/* The Explanation (Mapped from API: 'explanation') */}
         <section>
           <h3 className="flex items-center gap-2 text-indigo-700 font-bold mb-3">
-            <span>🧠</span> The Misconception
+            <span>🧠</span> The Core Misconception
           </h3>
-          <p className="text-slate-700 leading-relaxed">
-            {explanationData.misconception}
-          </p>
-        </section>
-
-        {/* Analogy Box */}
-        <section className="bg-slate-50 rounded-xl p-5 border border-slate-100">
-          <h4 className="flex items-center gap-2 text-indigo-700 font-bold mb-4">
-            <span>💡</span> {explanationData.analogy.title}
-          </h4>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="text-center">
-              <div className="bg-slate-200 h-32 rounded-lg mb-2 flex items-center justify-center text-slate-400">
-                [Pool Image]
-              </div>
-              <p className="text-xs text-slate-600">{explanationData.analogy.item1.label}</p>
-            </div>
-            <div className="text-center">
-              <div className="bg-slate-200 h-32 rounded-lg mb-2 flex items-center justify-center text-slate-400">
-                [Tea Image]
-              </div>
-              <p className="text-xs text-slate-600">{explanationData.analogy.item2.label}</p>
-            </div>
+          <div className="text-slate-700 leading-relaxed bg-indigo-50/50 p-5 rounded-xl border border-indigo-50">
+            {/* Using whitespace-pre-wrap so if the AI returns paragraphs or bullet 
+              points in the string, they render correctly on screen.
+            */}
+            <span className="whitespace-pre-wrap">
+              {explanationData.explanationText || explanationData.misconception}
+            </span>
           </div>
         </section>
 
-        {/* Breakdown */}
-        <section>
-          <h3 className="flex items-center gap-2 text-slate-800 font-bold mb-4">
-            <span>📑</span> Let's Break it Down
-          </h3>
-          <ul className="space-y-3">
-            {explanationData.breakdown.map((item, idx) => (
-              <li key={idx} className="flex gap-3 text-sm text-slate-700 leading-relaxed">
-                <span className="text-indigo-400 mt-1">•</span>
-                <span>
-                  <strong className="text-indigo-600">{item.term}</strong> {item.definition}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
+        {/* Improvement Tip (Mapped from API: 'improvement_tip') */}
+        {explanationData.improvementTip && (
+          <section>
+            <h3 className="flex items-center gap-2 text-emerald-700 font-bold mb-4">
+              <span>💡</span> How to get it right next time
+            </h3>
+            <div className="bg-emerald-50 rounded-xl p-5 border border-emerald-100">
+              <p className="text-sm text-emerald-800 leading-relaxed">
+                {explanationData.improvementTip}
+              </p>
+            </div>
+          </section>
+        )}
+
+        {/* NOTE: The Analogy and Breakdown sections were removed because the backend 
+          currently doesn't generate that specific data. If you update the Python 
+          backend to return complex JSON instead of just strings, you can easily 
+          add them back!
+        */}
+
       </div>
     </div>
   );
