@@ -1,116 +1,299 @@
-import React from 'react';
-import { useNavigate } from 'react-router-dom'; // <-- 1. Import useNavigate
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { useUser } from '../context/UserContext';
 import CourseSidebar from '../components/CourseSidebar';
+import { Menu, X, MessageSquare, Send, ChevronRight, ChevronLeft } from 'lucide-react';
 
 const LessonPage = () => {
-  const navigate = useNavigate(); // <-- 2. Initialize it
+  const navigate = useNavigate();
+  const { topicId } = useParams(); 
+  const { token } = useAuth();
+  const { studentData, userData } = useUser();
+  const activeId = studentData?.user_id || userData?.id;
+
+  const currentSubject = localStorage.getItem('active_subject') || studentData?.subjects?.[0] || 'math';
+  const currentLevel = studentData?.sss_level || 'SSS1';
+  const currentTerm = studentData?.current_term || 1;
+
+  // --- UI STATE ---
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isChatOpen, setIsChatOpen] = useState(true); // Default to open to show the "snapped" layout
+
+  // --- CORE DATA STATES ---
+  const [lessonData, setLessonData] = useState(null);
+  const [sidebarTopics, setSidebarTopics] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  // --- AI CHAT STATES ---
+  const [sessionId, setSessionId] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [chatInput, setChatInput] = useState("");
+  const [isTyping, setIsTyping] = useState(false);
+  const scrollRef = useRef(null);
+
+  const apiUrl = import.meta.env.VITE_API_URL || 'https://mastery-backend-7xe8.onrender.com/api/v1';
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages, isTyping, isChatOpen]);
+
+  useEffect(() => {
+    if (!activeId || !token || !topicId) return;
+
+    const initializeLessonAndChat = async () => {
+      setIsLoading(true);
+      try {
+        const lessonResponse = await fetch(`${apiUrl}/learning/topics/${topicId}/lesson?student_id=${activeId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (lessonResponse.ok) setLessonData(await lessonResponse.json());
+
+        const topicsParams = new URLSearchParams({ student_id: activeId, subject: currentSubject, term: currentTerm });
+        const topicsResponse = await fetch(`${apiUrl}/learning/topics?${topicsParams}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (topicsResponse.ok) setSidebarTopics(await topicsResponse.json());
+
+        const sessionResponse = await fetch(`${apiUrl}/tutor/sessions/start`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ student_id: activeId, subject: currentSubject, term: currentTerm })
+        });
+
+        if (sessionResponse.ok) {
+          const sessionData = await sessionResponse.json();
+          setSessionId(sessionData.session_id);
+        }
+      } catch (err) {
+        console.error("Initialization error:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    initializeLessonAndChat();
+
+    return () => {
+      if (sessionId) {
+        fetch(`${apiUrl}/tutor/sessions/${sessionId}/end`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }
+        }).catch(e => console.error("Error ending session", e));
+      }
+    };
+  }, [topicId, activeId, token]);
+
+  const handleSendMessage = async (e) => {
+    if (e) e.preventDefault();
+    if (!chatInput.trim() || !sessionId || isTyping) return;
+
+    const studentMsg = chatInput;
+    setMessages(prev => [...prev, { role: 'student', content: studentMsg }]);
+    setChatInput("");
+    setIsTyping(true);
+
+    try {
+      const response = await fetch(`${apiUrl}/tutor/chat`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          student_id: activeId,
+          session_id: sessionId,
+          subject: currentSubject,
+          sss_level: currentLevel,
+          term: currentTerm,
+          topic_id: topicId,
+          message: studentMsg
+        })
+      });
+
+      if (!response.ok) throw new Error();
+      const data = await response.json();
+      setMessages(prev => [...prev, { role: 'assistant', content: data.assistant_message }]);
+    } catch (err) {
+      setMessages(prev => [...prev, { role: 'assistant', content: "I'm having trouble connecting. Could you try that again?" }]);
+    } finally {
+      setIsTyping(false);
+    }
+  };
+
+  const renderContentBlock = (block, index) => {
+    switch (block.type) {
+      case 'video':
+        return (
+          <div key={index} className="aspect-video bg-slate-900 rounded-3xl mb-10 relative overflow-hidden shadow-xl">
+            {block.url ? <iframe src={block.url} className="w-full h-full" allowFullScreen title="Video"></iframe> : <div className="flex flex-col items-center justify-center h-full text-slate-500">Video Missing</div>}
+          </div>
+        );
+      case 'example':
+        const example = typeof block.value === 'object' ? block.value : { note: block.value };
+        return (
+          <div key={index} className="bg-indigo-50 border-l-4 border-indigo-600 p-6 rounded-r-2xl mb-8 text-sm">
+            <h4 className="text-xs font-bold text-indigo-800 uppercase tracking-wider mb-2">Worked Example</h4>
+            {example.prompt && <p className="font-bold text-indigo-900 mb-2">{example.prompt}</p>}
+            <p className="text-indigo-800 mb-4">{example.note || example.solution}</p>
+            {example.solution && <div className="mt-4 p-4 bg-white/50 rounded-xl border border-indigo-100"><span className="text-[10px] font-bold text-indigo-400 uppercase">Solution</span><p className="text-indigo-900 text-sm mt-1">{example.solution}</p></div>}
+          </div>
+        );
+      case 'exercise':
+        const exercise = typeof block.value === 'object' ? block.value : { question: block.value };
+        return (
+          <div key={index} className="bg-emerald-50 border-l-4 border-emerald-600 p-6 rounded-r-2xl mb-8 text-sm">
+            <h4 className="text-xs font-bold text-emerald-800 uppercase tracking-wider mb-2">Practice Task</h4>
+            <p className="text-emerald-900 font-medium mb-2">{exercise.question}</p>
+            <details className="mt-4"><summary className="text-xs font-bold text-emerald-600 cursor-pointer hover:text-emerald-700">Show Expected Answer</summary><p className="mt-2 text-sm text-emerald-800 bg-white/50 p-3 rounded-lg border border-emerald-100 italic">{exercise.expected_answer}</p></details>
+          </div>
+        );
+      case 'text':
+      default:
+        return <div key={index} className="text-slate-700 text-base leading-relaxed mb-8 whitespace-pre-wrap">{typeof block.value === 'object' ? (block.value.note || JSON.stringify(block.value)) : block.value}</div>;
+    }
+  };
 
   return (
-    <div className="flex bg-slate-50 h-[calc(100vh-64px)] overflow-hidden">
+    <div className="flex bg-slate-50 h-[calc(100vh-64px)] overflow-hidden relative">
       
-      {/* Left Navigation */}
-      <CourseSidebar activeStep="energy" />
+      {/* --- SIDEBAR --- */}
+      <div 
+        className={`bg-white border-r border-slate-200 transition-all duration-300 ease-in-out flex-shrink-0 ${
+          isSidebarOpen ? 'w-72' : 'w-0 overflow-hidden'
+        }`}
+      >
+        <CourseSidebar activeStep={topicId} subject={currentSubject} level={currentLevel} topics={sidebarTopics} />
+      </div>
 
-      {/* Center Main Content */}
-      <div className="flex-1 overflow-y-auto px-12 py-8">
-        <div className="max-w-3xl mx-auto">
-          
-          {/* Breadcrumbs */}
-          <div className="text-xs font-bold text-slate-400 mb-6 flex gap-2">
-            <span>Courses</span> <span>›</span> <span>Basic Science</span> <span>›</span> <span className="text-slate-800">Energy Transformation</span>
+      {/* --- MAIN CONTENT --- */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+        
+        {/* TOP BAR FOR TOGGLES */}
+        <div className="h-14 border-b border-slate-200 bg-white flex items-center justify-between px-4 flex-shrink-0">
+          <button 
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors flex items-center gap-2"
+          >
+            <Menu size={20} />
+            <span className="text-xs font-bold uppercase tracking-wider">Syllabus</span>
+          </button>
+
+          {!isChatOpen && (
+            <button 
+              onClick={() => setIsChatOpen(true)}
+              className="p-2 hover:bg-indigo-50 rounded-lg text-indigo-600 transition-colors flex items-center gap-2"
+            >
+              <span className="text-xs font-bold uppercase tracking-wider">Open AI Tutor</span>
+              <MessageSquare size={20} />
+            </button>
+          )}
+        </div>
+
+        {/* READING AREA */}
+        <div className="flex-1 overflow-y-auto px-6 py-8 md:px-12">
+          <div className="max-w-3xl mx-auto">
+            {isLoading ? (
+               <div className="animate-pulse space-y-6 mt-8">
+                 <div className="h-6 bg-slate-200 rounded w-1/3 mb-10"></div>
+                 <div className="h-12 bg-slate-200 rounded-xl w-3/4 mb-8"></div>
+                 <div className="aspect-video bg-slate-200 rounded-3xl w-full mb-8"></div>
+               </div>
+            ) : lessonData ? (
+              <>
+                <div className="text-[10px] font-bold text-slate-400 mb-6 flex gap-2 items-center uppercase tracking-widest">
+                  <span className="cursor-pointer hover:text-indigo-600" onClick={() => navigate('/dashboard')}>Courses</span> 
+                  <span>›</span> 
+                  <span className="cursor-pointer hover:text-indigo-600" onClick={() => navigate(`/course/${currentSubject}`)}>{currentSubject}</span> 
+                  <span>›</span> 
+                  <span className="text-slate-800 truncate max-w-[200px]">{lessonData.title || 'Topic'}</span>
+                </div>
+                <h1 className="text-3xl font-black text-slate-900 mb-4 tracking-tight">{lessonData.title}</h1>
+                {lessonData.summary && <p className="text-slate-500 text-base mb-10">{lessonData.summary}</p>}
+                <div className="mt-8">
+                  {lessonData.content_blocks?.map((block, index) => renderContentBlock(block, index))}
+                </div>
+                <div className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-8 border-t border-slate-200 pb-12 mt-12">
+                  <button onClick={() => navigate(`/course/${currentSubject}`)} className="text-sm text-slate-500 font-bold hover:text-slate-800 transition-colors flex items-center gap-2"><span>←</span> Back to Syllabus</button>
+                  <button onClick={() => navigate(`/quiz/${topicId}`)} className="bg-indigo-600 text-white px-6 py-3 rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200 flex items-center gap-2">Take Mastery Quiz <span>→</span></button>
+                </div>
+              </>
+            ) : null}
           </div>
+        </div>
+      </div>
 
-          <h1 className="text-4xl font-black text-slate-900 mb-8 tracking-tight">Understanding Energy Transformation</h1>
-
-          {/* Video Placeholder */}
-          <div className="aspect-video bg-slate-800 rounded-3xl mb-10 relative overflow-hidden group shadow-xl">
-            <img src="https://images.unsplash.com/photo-1508514177221-188b1cf16e9d?q=80&w=1200&auto=format&fit=crop" alt="Solar panels" className="w-full h-full object-cover opacity-70 mix-blend-overlay" />
-            <div className="absolute inset-0 flex items-center justify-center">
-              <button className="w-16 h-16 bg-white/90 backdrop-blur rounded-full flex items-center justify-center text-indigo-600 hover:scale-110 transition-transform shadow-2xl pl-1">
-                <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-              </button>
-            </div>
-            <div className="absolute bottom-4 left-6 text-white font-bold text-sm">Introduction to Energy Conversion</div>
-            <div className="absolute bottom-4 right-6 text-white font-bold text-sm bg-black/50 px-2 py-1 rounded">04:20</div>
-          </div>
-
-          {/* Lesson Text */}
-          <div className="prose prose-slate max-w-none">
-            <h2 className="text-2xl font-bold text-slate-900 mb-4">The Law of Conservation of Energy</h2>
-            <p className="text-slate-600 leading-relaxed mb-8">
-              In basic science, we learn that energy cannot be created or destroyed. Instead, it changes from one form to another. This process is called <strong>Energy Transformation</strong>. Think of a light bulb: it takes electrical energy and transforms it into light energy and heat energy.
-            </p>
-
-            <div className="bg-indigo-50 border-l-4 border-indigo-600 p-6 rounded-r-2xl mb-8">
-              <p className="text-indigo-900 font-medium italic m-0">
-                "Energy transformation is the process of changing energy from one form to another. All around us, energy is constantly shifting between kinetic, potential, thermal, and chemical states."
+      {/* --- CHATBOT PANEL (Snaps to Right) --- */}
+      <div 
+        className={`bg-white border-l border-slate-200 transition-all duration-300 ease-in-out flex-shrink-0 flex flex-col ${
+          isChatOpen ? 'w-80 sm:w-96' : 'w-0 overflow-hidden border-none'
+        }`}
+      >
+        <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-indigo-50/50 flex-shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white text-sm shadow-md">🤖</div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">AI Tutor</h3>
+              <p className="text-[10px] text-emerald-500 font-bold flex items-center gap-1 uppercase">
+                  <span className={`w-1.5 h-1.5 rounded-full bg-emerald-500 ${isTyping ? 'animate-ping' : 'animate-pulse'}`}></span> 
+                  {isTyping ? 'Thinking' : 'Online'}
               </p>
             </div>
+          </div>
+          <button onClick={() => setIsChatOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors">
+            <ChevronRight size={20} />
+          </button>
+        </div>
 
-            <h3 className="text-xl font-bold text-slate-900 mb-4">Common Examples for JSS Students:</h3>
-            <ul className="space-y-4 mb-12">
-              <li className="flex gap-4">
-                <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center flex-shrink-0 mt-0.5 text-xs font-bold">1</div>
-                <p className="text-slate-600"><strong>Photosynthesis:</strong> Plants convert radiant energy from the sun into chemical energy stored in food.</p>
-              </li>
-              <li className="flex gap-4">
-                <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center flex-shrink-0 mt-0.5 text-xs font-bold">2</div>
-                <p className="text-slate-600"><strong>Electric Fan:</strong> Converts electrical energy into kinetic energy (motion) to move the blades.</p>
-              </li>
-            </ul>
+        <div ref={scrollRef} className="flex-1 p-4 overflow-y-auto space-y-4 text-xs scroll-smooth bg-white">
+          <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl rounded-tl-sm text-slate-600 leading-relaxed">
+            Hi {userData?.first_name || 'there'}! I'm your AI tutor. I see you're learning about <strong className="text-indigo-600">{lessonData?.title || 'this topic'}</strong>.
           </div>
 
-          {/* Content Footer Nav */}
-          <div className="flex justify-between items-center pt-8 border-t border-slate-200 pb-12">
-            <button className="text-slate-500 font-bold hover:text-slate-800 transition-colors flex items-center gap-2">
-              <span>←</span> Previous: Living Things
-            </button>
-            {/* <-- 3. Wired up the button to skip to the quiz --> */}
-            <button 
-              onClick={() => navigate('/module-quiz')}
-              className="bg-indigo-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200 flex items-center gap-2"
-            >
-              Take Mastery Quiz <span>→</span>
-            </button>
-          </div>
+          {messages.map((msg, i) => (
+            <div key={i} className={`p-4 rounded-2xl max-w-[90%] leading-relaxed ${msg.role === 'student' ? 'bg-indigo-600 text-white ml-auto rounded-tr-sm shadow-md' : 'bg-slate-50 border border-slate-100 text-slate-600 mr-auto rounded-tl-sm'}`}>
+              {msg.content}
+            </div>
+          ))}
 
+          {isTyping && (
+            <div className="bg-slate-50 border border-slate-100 p-3 rounded-2xl rounded-tl-sm w-16 flex justify-center gap-1">
+              <span className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce"></span>
+              <span className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce [animation-delay:0.2s]"></span>
+              <span className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce [animation-delay:0.4s]"></span>
+            </div>
+          )}
+        </div>
+
+        <div className="p-4 border-t border-slate-100 bg-white flex-shrink-0">
+          <form onSubmit={handleSendMessage} className="relative">
+            <input 
+              type="text" 
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              disabled={isTyping || !sessionId}
+              placeholder="Ask a question..." 
+              className="w-full pl-4 pr-12 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-600" 
+            />
+            <button type="submit" disabled={!chatInput.trim() || isTyping} className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-indigo-600 text-white rounded-lg flex items-center justify-center hover:bg-indigo-700 disabled:bg-slate-300 transition-colors">
+              <Send size={14} />
+            </button>
+          </form>
         </div>
       </div>
 
-      {/* Right AI Sidebar */}
-      <div className="w-80 bg-white border-l border-slate-200 flex flex-col h-[calc(100vh-64px)]">
-        <div className="p-4 border-b border-slate-100 flex items-center gap-3 bg-indigo-50/50">
-          <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white text-sm shadow-md">🤖</div>
-          <div>
-            <h3 className="text-sm font-bold text-slate-900">AI Tutor</h3>
-            <p className="text-[10px] text-emerald-500 font-bold flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> ALWAYS LISTENING</p>
-          </div>
-        </div>
-
-        <div className="flex-1 p-4 overflow-y-auto space-y-4 text-sm">
-          <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl rounded-tl-sm text-slate-600">
-            Hi Alex! I'm your AI tutor. I see you're learning about <strong className="text-indigo-600">Energy Transformation</strong>.<br/><br/>
-            I have access to the current JSS2 curriculum. Would you like me to explain how a hydroelectric dam works or give more examples of kinetic energy?
-          </div>
-          
-          <div className="bg-indigo-600 p-4 rounded-2xl rounded-tr-sm text-white shadow-md shadow-indigo-100 ml-4">
-            Yes, please! How does energy change when I kick a ball?
-          </div>
-        </div>
-
-        <div className="p-4 border-t border-slate-100 bg-white">
-          <div className="flex gap-2 mb-3 overflow-x-auto pb-1 scrollbar-hide">
-            <button className="whitespace-nowrap px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-full text-xs font-bold text-slate-600 hover:bg-slate-100">Explain Hydroelectric</button>
-            <button className="whitespace-nowrap px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-full text-xs font-bold text-slate-600 hover:bg-slate-100">Examples of Kinetic</button>
-          </div>
-          <div className="relative">
-            <input type="text" placeholder="Ask a question about this topic..." className="w-full pl-4 pr-12 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent" />
-            <button className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-indigo-600 text-white rounded-lg flex items-center justify-center hover:bg-indigo-700 transition-colors">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
-            </button>
-          </div>
-        </div>
-      </div>
+      {/* CHAT FAB (Only shows when Chat is closed) */}
+      {!isChatOpen && (
+        <button 
+          onClick={() => setIsChatOpen(true)}
+          className="fixed bottom-6 right-6 w-14 h-14 bg-indigo-600 text-white rounded-full flex items-center justify-center shadow-2xl hover:bg-indigo-700 transition-all hover:scale-110 z-40"
+        >
+          <MessageSquare size={24} />
+        </button>
+      )}
 
     </div>
   );

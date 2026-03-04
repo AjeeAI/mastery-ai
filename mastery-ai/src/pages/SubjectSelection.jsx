@@ -63,7 +63,7 @@ const SubjectSelection = () => {
         }
 
         const userMeData = await userMeResponse.json();
-        activeId = userMeData.id; 
+        activeId = userMeData.user_id; 
       }
 
       if (!activeId) {

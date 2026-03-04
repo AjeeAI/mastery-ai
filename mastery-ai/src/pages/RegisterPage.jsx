@@ -21,22 +21,20 @@ const RegisterPage = () => {
 
   const rawClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
   const GOOGLE_CLIENT_ID = rawClientId.replace(/['"]/g, '').trim();
+  const apiUrl = import.meta.env.VITE_API_URL || 'https://mastery-backend-7xe8.onrender.com/api/v1';
 
   const handleGoogleSuccess = async (credentialResponse) => {
     login("mock-google-token-123");
     navigate('/class-selection');
   };
 
-  // --- CUSTOM INLINE VALIDATION LOGIC ---
   const validateForm = () => {
     const newErrors = {};
     
-    // 1. Validate Name
     if (!formData.fullName.trim()) {
       newErrors.fullName = "Full name is required.";
     }
 
-    // 2. Validate Email
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!formData.email.trim()) {
       newErrors.email = "Email address is required.";
@@ -44,12 +42,10 @@ const RegisterPage = () => {
       newErrors.email = "Please enter a valid email address.";
     }
 
-    // 3. Validate Password (Minimum 6 characters)
-   // 3. Validate Password (Minimum 8 characters)
     if (!formData.password) {
       newErrors.password = "Password is required.";
-    } else if (formData.password.length < 8) { // <-- CHANGE THIS TO 8
-      newErrors.password = "Password must be at least 8 characters long."; // <-- CHANGE THIS TO 8
+    } else if (formData.password.length < 8) { 
+      newErrors.password = "Password must be at least 8 characters long."; 
     }
     setFormErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -62,7 +58,6 @@ const RegisterPage = () => {
     }
   };
 
-  // --- REAL BACKEND API WITH TIMEOUT RESTORED ---
   const handleManualSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -71,22 +66,29 @@ const RegisterPage = () => {
 
     setIsLoading(true);
 
-    // --- TIMEOUT CONTROLLER SETUP ---
-    // Gives the server exactly 15 seconds to complete BOTH registration and auto-login
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000);
 
     try {
+      // Logic to split "Full Name" into backend-friendly schema fields
+      const nameParts = formData.fullName.trim().split(' ');
+      const firstName = nameParts[0];
+      // If there are multiple names, combine the rest as the last name. Otherwise, leave empty.
+      const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : undefined;
+
       // 1. Hit the Registration Endpoint
-      const regResponse = await fetch('https://mastery-backend-7xe8.onrender.com/api/v1/auth/register', {
+      const regResponse = await fetch(`${apiUrl}/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          full_name: formData.fullName, 
           email: formData.email,
-          password: formData.password
+          password: formData.password,
+          first_name: firstName,         // Matches RegisterIn schema
+          last_name: lastName,           // Matches RegisterIn schema
+          display_name: formData.fullName, // Matches RegisterIn schema
+          role: "student"                // Defaulting to student as per schema
         }),
-        signal: controller.signal // Wire the controller to the registration fetch
+        signal: controller.signal
       });
 
       if (!regResponse.ok) {
@@ -94,18 +96,19 @@ const RegisterPage = () => {
         throw new Error(errData?.detail || "Registration failed. Email might already be in use.");
       }
 
+      // Backend RegisterOut returns the created ID as `user_id`
       const regData = await regResponse.json().catch(() => null);
-      let studentId = regData?.id || regData?.student_id || regData?.user_id;
+      let studentId = regData?.user_id;
 
-      // 2. Auto-Login to get the Authorization Token
-      const loginResponse = await fetch('https://mastery-backend-7xe8.onrender.com/api/v1/auth/login', {
+      // 2. Auto-Login to get the Authorization Token (LoginIn schema)
+      const loginResponse = await fetch(`${apiUrl}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: formData.email, 
           password: formData.password
         }),
-        signal: controller.signal // Wire the exact same controller to the login fetch
+        signal: controller.signal
       });
 
       if (!loginResponse.ok) {
@@ -114,18 +117,9 @@ const RegisterPage = () => {
 
       const loginData = await loginResponse.json();
 
+      // Ensure we have the ID to set in local storage
       if (!studentId) {
-        studentId = loginData.student_id || loginData.id || loginData.user_id;
-        if (!studentId && loginData.access_token) {
-          try {
-            const base64Url = loginData.access_token.split('.')[1];
-            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-            const parsedToken = JSON.parse(window.atob(base64));
-            studentId = parsedToken.student_id || parsedToken.id || parsedToken.user_id;
-          } catch (e) {
-            console.warn("Could not extract UUID from token.");
-          }
-        }
+        studentId = loginData.user_id;
       }
 
       if (studentId) {
@@ -137,15 +131,13 @@ const RegisterPage = () => {
 
     } catch (err) {
       console.error("Signup Error:", err);
-      
-      // --- TIMEOUT ERROR HANDLING ---
       if (err.name === 'AbortError') {
         setError("The server is taking too long to respond. Please check your connection and try again.");
       } else {
         setError(err.message); 
       }
     } finally {
-      clearTimeout(timeoutId); // Stop the timer if it finishes successfully or fails early
+      clearTimeout(timeoutId); 
       setIsLoading(false);
     }
   };
@@ -204,7 +196,6 @@ const RegisterPage = () => {
             </p>
           </div>
 
-          {/* Backend API Error Banner */}
           {error && (
             <div className="bg-rose-50 text-rose-600 p-4 rounded-xl text-sm font-medium border border-rose-100 flex items-start gap-3">
               <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>

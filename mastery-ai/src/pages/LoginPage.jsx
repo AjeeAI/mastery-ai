@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import loginImg from "/src/assets/login_img.png"; // Ensure this path is correct based on your project structure
+import loginImg from "/src/assets/login_img.png";
+
 const LoginPage = () => {
   const navigate = useNavigate();
   const [error, setError] = useState(""); 
@@ -15,6 +16,7 @@ const LoginPage = () => {
 
   const rawClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
   const GOOGLE_CLIENT_ID = rawClientId.replace(/['"]/g, '').trim();
+  const apiUrl = import.meta.env.VITE_API_URL || 'https://mastery-backend-7xe8.onrender.com/api/v1';
 
   const handleGoogleSuccess = async (credentialResponse) => {
     login("mock-google-token-123");
@@ -33,8 +35,8 @@ const LoginPage = () => {
 
     if (!formData.password) {
       newErrors.password = "Password is required.";
-    } else if (formData.password.length < 8) { // <-- CHANGE THIS TO 8
-      newErrors.password = "Password must be at least 8 characters long."; // <-- CHANGE THIS TO 8
+    } else if (formData.password.length < 8) { 
+      newErrors.password = "Password must be at least 8 characters long."; 
     }
 
     setFormErrors(newErrors);
@@ -56,23 +58,21 @@ const LoginPage = () => {
 
     setIsLoading(true);
 
-    // --- TIMEOUT CONTROLLER SETUP ---
-    // This will force the request to abort if it takes longer than 15 seconds
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000); 
 
     try {
-      const response = await fetch('https://mastery-backend-7xe8.onrender.com/api/v1/auth/login', {
+      // 1. Send LoginIn schema {email, password}
+      const response = await fetch(`${apiUrl}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: formData.email, 
           password: formData.password
         }),
-        signal: controller.signal // Wire the controller to the fetch request
+        signal: controller.signal
       });
 
-      // Clear the timeout stopwatch if the server responds in time!
       clearTimeout(timeoutId);
 
       if (!response.ok) {
@@ -80,20 +80,11 @@ const LoginPage = () => {
         throw new Error(errData?.detail || "Login failed. Please check your credentials.");
       }
 
+      // 2. Receive AuthOut schema
       const data = await response.json();
       
-      let studentId = data.student_id || data.id || data.user_id;
-
-      if (!studentId && data.access_token) {
-        try {
-          const base64Url = data.access_token.split('.')[1];
-          const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-          const parsedToken = JSON.parse(window.atob(base64));
-          studentId = parsedToken.student_id || parsedToken.id || parsedToken.user_id;
-        } catch (tokenErr) {
-          console.warn("Could not decode token to find UUID.");
-        }
-      }
+      // The backend explicitly returns 'user_id' based on AuthOut schema
+      const studentId = data.user_id;
 
       if (studentId) {
         localStorage.setItem("mastery_student_id", studentId);
@@ -104,9 +95,6 @@ const LoginPage = () => {
 
     } catch (err) {
       console.error("Login Error:", err);
-      
-      // --- TIMEOUT ERROR HANDLING ---
-      // If the abort controller killed the request, it throws an 'AbortError'
       if (err.name === 'AbortError') {
         setError("The server is taking too long to respond. Please check your connection and try again.");
       } else {

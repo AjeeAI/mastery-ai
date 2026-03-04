@@ -8,12 +8,13 @@ import ProtectedRoute from './components/ProtectedRoute';
 // --- Import Layout Components ---
 import Navbar from './components/Navbar';
 import TeacherSidebar from './components/TeacherSidebar';
-import LandingLayout from './layouts/LandingLayout'; // NEW: Import your Landing Layout
+import LandingLayout from './layouts/LandingLayout'; 
 
 // --- Import Public Pages ---
-import HomePage from './pages/HomePage'; // NEW: Import HomePage
-import AboutPage from './pages/AboutPage'; // NEW: Import AboutPage
- // NEW: Import ContactPage
+import HomePage from './pages/HomePage'; 
+import AboutPage from './pages/AboutPage'; 
+import Contactpage from './pages/ContactPage';
+
 // --- Import Core Pages ---
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
@@ -39,7 +40,7 @@ import LessonPage from './pages/LessonPage';
 import ModuleQuizPage from './pages/ModuleQuizPage';
 import QuizResult from './pages/QuizResult';
 import { UserProvider } from './context/UserContext';
-import Contactpage from './pages/ContactPage';
+
 
 /* --- Layout Wrappers --- */
 const StudentLayout = () => (
@@ -70,7 +71,6 @@ function App() {
           </Route>
 
           {/* 🔓 PUBLIC AUTH ROUTES (No Navbar, No Footer) */}
-          {/* We keep these outside LandingLayout so they have a clean screen */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           
@@ -86,8 +86,11 @@ function App() {
             {/* Student Layout (Has Top Navbar) */}
             <Route element={<StudentLayout />}>
               <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/course" element={<CoursePage />} /> 
-              <Route path="/learning-path" element={<LessonPage />} />
+              
+              {/* 👇 THE FIX IS HERE: Added /:subject and /:topicId 👇 */}
+              <Route path="/course/:subject" element={<CoursePage />} /> 
+              <Route path="/lesson/:topicId" element={<LessonPage />} />
+              
               <Route path="/mastery-path" element={<ExplainMistakePage />} />
               <Route path="/profile" element={<ProfilePage />} />
               

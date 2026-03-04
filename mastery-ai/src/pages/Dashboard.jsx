@@ -16,39 +16,36 @@ export default function Dashboard() {
     const { token } = useAuth();
     const { userData, studentData } = useUser(); 
 
-    // Dynamic User Data
-    const fullName = userData 
-      ? `${userData.first_name || ''} ${userData.last_name || ''}`.trim() 
-      : 'Student';
+    const fullName = userData ? `${userData.first_name || ''} ${userData.last_name || ''}`.trim() : 'Student';
     const activeId = studentData?.user_id || userData?.id;
-
-    // Grab the student's actual level, term, and their first enrolled subject
     const currentLevel = studentData?.sss_level || 'SSS1';
-    const currentTerm = studentData?.current_term || 1; // <-- Now capturing the Term!
-    const currentSubject = studentData?.subjects?.[0] || 'math'; // Defaults to math if missing
+    const currentTerm = studentData?.current_term || 1; 
+
+    // --- NEW SUBJECT SELECTION LOGIC ---
+    const enrolledSubjects = studentData?.subjects || []; 
+    // Start as null so the user is forced to pick a subject from the HeroSection
+    const [activeSubject, setActiveSubject] = useState(null);
 
     // State for the Learning Map
     const [mapNodes, setMapNodes] = useState([]);
-    const [isLoadingMap, setIsLoadingMap] = useState(true);
+    const [isLoadingMap, setIsLoadingMap] = useState(false);
 
-    const apiUrl = import.meta.env.VITE_API_URL;
+    const apiUrl = import.meta.env.VITE_API_URL || 'https://mastery-backend-7xe8.onrender.com/api/v1';
 
-    // --- Fetch Learning Map Data ---
     // --- Fetch Learning Map Data ---
     useEffect(() => {
-        // 1. If we don't have the ID or Token yet, don't fetch, just wait!
-        // The component will automatically re-run this effect once they load.
-        if (!activeId || !token) {
+        // ONLY fetch if we have an ID, Token, AND the user has selected a subject!
+        if (!activeId || !token || !activeSubject) {
             return; 
         }
 
         const fetchLearningMap = async () => {
-            setIsLoadingMap(true); // 2. Start the spinner only when we are actually fetching
+            setIsLoadingMap(true); 
             
             try {
                 const queryParams = new URLSearchParams({
                     student_id: activeId,
-                    subject: currentSubject,
+                    subject: activeSubject, // Uses the selected subject!
                     sss_level: currentLevel,
                     term: currentTerm,
                     view: 'topic' 
@@ -62,33 +59,28 @@ export default function Dashboard() {
                     }
                 });
 
-                if (!response.ok) {
-                    throw new Error("Failed to fetch learning map");
-                }
+                if (!response.ok) throw new Error("Failed to fetch learning map");
 
                 const data = await response.json();
                 setMapNodes(data.nodes || data);
 
             } catch (err) {
                 console.error("Map fetch error:", err);
-                
-                // Fallback to demo data so the UI doesn't break
+                // Fallback demo data
                 setMapNodes([
                     { id: 1, status: "mastered", title: "Number Bases" },
                     { id: 2, status: "mastered", title: "Fractions & Decimals" },
                     { id: 3, status: "current", title: "Algebraic Expressions", details: "64% MASTERY • NEEDS FOCUS" },
-                    { id: 4, status: "locked", title: "Linear Equations" },
-                    { id: 5, status: "locked", title: "Word Problems" }
+                    { id: 4, status: "locked", title: "Linear Equations" }
                 ]);
             } finally {
-                setIsLoadingMap(false); // 3. Guarantee the spinner turns off!
+                setIsLoadingMap(false); 
             }
         };
 
         fetchLearningMap();
-    }, [activeId, currentSubject, currentLevel, currentTerm, token, apiUrl]);
+    }, [activeId, activeSubject, currentLevel, currentTerm, token, apiUrl]); // Added activeSubject to dependencies
     
-    // Mock API data for Leaderboard
     const apiLeaderboardData = [
         { id: "u1", rank: 1, name: "Sarah Jenkins", points: "4,250" },
         { id: "u2", rank: 2, name: "Marcus Thorne", points: "3,900" },
@@ -99,42 +91,41 @@ export default function Dashboard() {
         <div className="min-h-screen bg-[#F8FAFC] font-sans">
             <main className="max-w-9xl mx-auto px-6 py-8">
                 <div className="flex flex-col lg:flex-row gap-6 mb-8">
+                    
+                    {/* NEW: Pass the required props to HeroSection */}
                     <HeroSection 
-                        recentModules={3} 
-                        currentSubject={`${currentLevel} ${currentSubject.charAt(0).toUpperCase() + currentSubject.slice(1)}`} 
-                        hasStartedLearning={true}
+                        enrolledSubjects={enrolledSubjects}
+                        activeSubject={activeSubject}
+                        onSelectSubject={setActiveSubject}
+                        hasStartedLearning={false} // Will make this dynamic when we fetch activity history!
                     />
+                    
                     <AIRecommendation/>
                 </div>
 
-                {/* Stats Row */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                    <StatCard 
-                        icon={Flame} iconBg="bg-orange-50" iconColor="text-orange-500"
-                        title="Study Streak" value="12 Days" subtext="Personal Best!" subtextColor="text-orange-500"
-                    />
-                    <StatCard 
-                        icon={Star} iconBg="bg-yellow-50" iconColor="text-yellow-500"
-                        title="Mastery Points" value="3,450" subtext={`+${150} today`} subtextColor="text-gray-400"
-                    />
-                    <StatCard 
-                        icon={CheckCircle2} iconBg="bg-green-50" iconColor="text-green-500"
-                        title="Concepts Mastered" value="28 / 45" 
-                    />
-                    <StatCard 
-                        icon={Clock} iconBg="bg-blue-50" iconColor="text-blue-500"
-                        title="Study Time" value="14h 20m" subtext="This week" subtextColor="text-gray-400"
-                    />
+                    <StatCard icon={Flame} iconBg="bg-orange-50" iconColor="text-orange-500" title="Study Streak" value="12 Days" subtext="Personal Best!" subtextColor="text-orange-500" />
+                    <StatCard icon={Star} iconBg="bg-yellow-50" iconColor="text-yellow-500" title="Mastery Points" value="3,450" subtext="+150 today" subtextColor="text-gray-400" />
+                    <StatCard icon={CheckCircle2} iconBg="bg-green-50" iconColor="text-green-500" title="Concepts Mastered" value="28 / 45" />
+                    <StatCard icon={Clock} iconBg="bg-blue-50" iconColor="text-blue-500" title="Study Time" value="14h 20m" subtext="This week" subtextColor="text-gray-400" />
                 </div>
 
-                {/* Dynamically pass the fetched nodes to the LearningMap */}
-                {isLoadingMap ? (
-                    <div className="w-full bg-white rounded-2xl shadow-sm border border-slate-200 p-12 text-center text-slate-500 mb-8 animate-pulse">
-                        <div className="w-8 h-8 mx-auto border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-                        Generating your personalized learning path...
+                {/* DYNAMIC MAP RENDERING */}
+                {!activeSubject ? (
+                    <div className="w-full bg-white rounded-3xl shadow-sm border border-slate-200 p-16 text-center mb-8 flex flex-col items-center justify-center">
+                        <div className="w-20 h-20 bg-indigo-50 text-indigo-400 rounded-full flex items-center justify-center mb-6 shadow-inner">
+                            <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path></svg>
+                        </div>
+                        <h3 className="text-2xl font-bold text-slate-800 mb-3">Your Learning Map is Waiting</h3>
+                        <p className="text-slate-500 max-w-md mx-auto text-lg">Select a subject from the top section to generate your personalized AI curriculum map.</p>
+                    </div>
+                ) : isLoadingMap ? (
+                    <div className="w-full bg-white rounded-3xl shadow-sm border border-slate-200 p-16 text-center text-indigo-500 font-medium mb-8 animate-pulse flex flex-col items-center">
+                        <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+                        Generating your personalized {activeSubject} path...
                     </div>
                 ) : (
-                    <LearningMap classLevel={currentLevel} subject={currentSubject} nodes={mapNodes} />
+                    <LearningMap classLevel={currentLevel} subject={activeSubject} nodes={mapNodes} />
                 )}
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
