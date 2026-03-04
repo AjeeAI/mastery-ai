@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useUser } from '../context/UserContext';
 import CourseSidebar from '../components/CourseSidebar';
-import { Menu, X, MessageSquare, Send, ChevronRight, ChevronLeft } from 'lucide-react';
+import { Menu, X, MessageSquare, Send, ChevronRight, BookOpen } from 'lucide-react';
 
 const LessonPage = () => {
   const navigate = useNavigate();
@@ -17,8 +17,9 @@ const LessonPage = () => {
   const currentTerm = studentData?.current_term || 1;
 
   // --- UI STATE ---
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [isChatOpen, setIsChatOpen] = useState(true); // Default to open to show the "snapped" layout
+  // Defaulting to closed on mobile for better UX
+  const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 1024);
+  const [isChatOpen, setIsChatOpen] = useState(window.innerWidth > 1280); 
 
   // --- CORE DATA STATES ---
   const [lessonData, setLessonData] = useState(null);
@@ -35,11 +36,24 @@ const LessonPage = () => {
 
   const apiUrl = import.meta.env.VITE_API_URL || 'https://mastery-backend-7xe8.onrender.com/api/v1';
 
+  // Handle auto-scroll
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages, isTyping, isChatOpen]);
+
+  // Handle window resize for UI state
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 1024) {
+        setIsSidebarOpen(false);
+        setIsChatOpen(false);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     if (!activeId || !token || !topicId) return;
@@ -128,14 +142,14 @@ const LessonPage = () => {
     switch (block.type) {
       case 'video':
         return (
-          <div key={index} className="aspect-video bg-slate-900 rounded-3xl mb-10 relative overflow-hidden shadow-xl">
+          <div key={index} className="aspect-video bg-slate-900 rounded-2xl md:rounded-3xl mb-10 relative overflow-hidden shadow-xl">
             {block.url ? <iframe src={block.url} className="w-full h-full" allowFullScreen title="Video"></iframe> : <div className="flex flex-col items-center justify-center h-full text-slate-500">Video Missing</div>}
           </div>
         );
       case 'example':
         const example = typeof block.value === 'object' ? block.value : { note: block.value };
         return (
-          <div key={index} className="bg-indigo-50 border-l-4 border-indigo-600 p-6 rounded-r-2xl mb-8 text-sm">
+          <div key={index} className="bg-indigo-50 border-l-4 border-indigo-600 p-4 md:p-6 rounded-r-2xl mb-8 text-sm">
             <h4 className="text-xs font-bold text-indigo-800 uppercase tracking-wider mb-2">Worked Example</h4>
             {example.prompt && <p className="font-bold text-indigo-900 mb-2">{example.prompt}</p>}
             <p className="text-indigo-800 mb-4">{example.note || example.solution}</p>
@@ -145,7 +159,7 @@ const LessonPage = () => {
       case 'exercise':
         const exercise = typeof block.value === 'object' ? block.value : { question: block.value };
         return (
-          <div key={index} className="bg-emerald-50 border-l-4 border-emerald-600 p-6 rounded-r-2xl mb-8 text-sm">
+          <div key={index} className="bg-emerald-50 border-l-4 border-emerald-600 p-4 md:p-6 rounded-r-2xl mb-8 text-sm">
             <h4 className="text-xs font-bold text-emerald-800 uppercase tracking-wider mb-2">Practice Task</h4>
             <p className="text-emerald-900 font-medium mb-2">{exercise.question}</p>
             <details className="mt-4"><summary className="text-xs font-bold text-emerald-600 cursor-pointer hover:text-emerald-700">Show Expected Answer</summary><p className="mt-2 text-sm text-emerald-800 bg-white/50 p-3 rounded-lg border border-emerald-100 italic">{exercise.expected_answer}</p></details>
@@ -153,17 +167,25 @@ const LessonPage = () => {
         );
       case 'text':
       default:
-        return <div key={index} className="text-slate-700 text-base leading-relaxed mb-8 whitespace-pre-wrap">{typeof block.value === 'object' ? (block.value.note || JSON.stringify(block.value)) : block.value}</div>;
+        return <div key={index} className="text-slate-700 text-base md:text-lg leading-relaxed mb-8 whitespace-pre-wrap">{typeof block.value === 'object' ? (block.value.note || JSON.stringify(block.value)) : block.value}</div>;
     }
   };
 
   return (
     <div className="flex bg-slate-50 h-[calc(100vh-64px)] overflow-hidden relative">
       
-      {/* --- SIDEBAR --- */}
+      {/* --- SIDEBAR --- 
+          Responsive: Fixed overlay on mobile, flex-shrink on desktop
+      */}
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-slate-900/40 z-50 lg:hidden" 
+          onClick={() => setIsSidebarOpen(false)} 
+        />
+      )}
       <div 
-        className={`bg-white border-r border-slate-200 transition-all duration-300 ease-in-out flex-shrink-0 ${
-          isSidebarOpen ? 'w-72' : 'w-0 overflow-hidden'
+        className={`bg-white border-r border-slate-200 transition-all duration-300 ease-in-out flex-shrink-0 z-50 fixed inset-y-0 left-0 lg:relative ${
+          isSidebarOpen ? 'w-72 translate-x-0' : 'w-0 -translate-x-full lg:translate-x-0 overflow-hidden'
         }`}
       >
         <CourseSidebar activeStep={topicId} subject={currentSubject} level={currentLevel} topics={sidebarTopics} />
@@ -179,46 +201,56 @@ const LessonPage = () => {
             className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors flex items-center gap-2"
           >
             <Menu size={20} />
-            <span className="text-xs font-bold uppercase tracking-wider">Syllabus</span>
+            <span className="hidden sm:inline text-xs font-bold uppercase tracking-wider">Syllabus</span>
           </button>
+
+          <div className="flex items-center gap-2 overflow-hidden px-2">
+             <BookOpen size={16} className="text-indigo-600 flex-shrink-0" />
+             <span className="text-xs font-black text-slate-700 truncate capitalize">{currentSubject}</span>
+          </div>
 
           {!isChatOpen && (
             <button 
               onClick={() => setIsChatOpen(true)}
               className="p-2 hover:bg-indigo-50 rounded-lg text-indigo-600 transition-colors flex items-center gap-2"
             >
-              <span className="text-xs font-bold uppercase tracking-wider">Open AI Tutor</span>
+              <span className="hidden sm:inline text-xs font-bold uppercase tracking-wider">AI Tutor</span>
               <MessageSquare size={20} />
             </button>
           )}
         </div>
 
         {/* READING AREA */}
-        <div className="flex-1 overflow-y-auto px-6 py-8 md:px-12">
+        <div className="flex-1 overflow-y-auto px-4 py-6 md:px-12 md:py-8 scrollbar-hide">
           <div className="max-w-3xl mx-auto">
             {isLoading ? (
-               <div className="animate-pulse space-y-6 mt-8">
+               <div className="animate-pulse space-y-6 mt-4">
                  <div className="h-6 bg-slate-200 rounded w-1/3 mb-10"></div>
                  <div className="h-12 bg-slate-200 rounded-xl w-3/4 mb-8"></div>
                  <div className="aspect-video bg-slate-200 rounded-3xl w-full mb-8"></div>
                </div>
+            ) : error ? (
+              <div className="bg-rose-50 text-rose-600 p-6 rounded-2xl border border-rose-100 text-center mt-10">
+                <p className="font-bold">{error}</p>
+                <button onClick={() => navigate('/dashboard')} className="mt-4 text-sm font-semibold underline">Return to Dashboard</button>
+              </div>
             ) : lessonData ? (
               <>
-                <div className="text-[10px] font-bold text-slate-400 mb-6 flex gap-2 items-center uppercase tracking-widest">
-                  <span className="cursor-pointer hover:text-indigo-600" onClick={() => navigate('/dashboard')}>Courses</span> 
+                <div className="text-[10px] font-bold text-slate-400 mb-6 flex gap-2 items-center uppercase tracking-widest overflow-hidden">
+                  <span className="cursor-pointer hover:text-indigo-600 flex-shrink-0" onClick={() => navigate('/dashboard')}>Courses</span> 
                   <span>›</span> 
-                  <span className="cursor-pointer hover:text-indigo-600" onClick={() => navigate(`/course/${currentSubject}`)}>{currentSubject}</span> 
+                  <span className="cursor-pointer hover:text-indigo-600 truncate" onClick={() => navigate(`/course/${currentSubject}`)}>{currentSubject}</span> 
                   <span>›</span> 
-                  <span className="text-slate-800 truncate max-w-[200px]">{lessonData.title || 'Topic'}</span>
+                  <span className="text-slate-800 truncate">{lessonData.title || 'Topic'}</span>
                 </div>
-                <h1 className="text-3xl font-black text-slate-900 mb-4 tracking-tight">{lessonData.title}</h1>
-                {lessonData.summary && <p className="text-slate-500 text-base mb-10">{lessonData.summary}</p>}
+                <h1 className="text-2xl md:text-3xl font-black text-slate-900 mb-4 tracking-tight leading-tight">{lessonData.title}</h1>
+                {lessonData.summary && <p className="text-slate-500 text-sm md:text-base mb-10 leading-relaxed">{lessonData.summary}</p>}
                 <div className="mt-8">
                   {lessonData.content_blocks?.map((block, index) => renderContentBlock(block, index))}
                 </div>
-                <div className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-8 border-t border-slate-200 pb-12 mt-12">
-                  <button onClick={() => navigate(`/course/${currentSubject}`)} className="text-sm text-slate-500 font-bold hover:text-slate-800 transition-colors flex items-center gap-2"><span>←</span> Back to Syllabus</button>
-                  <button onClick={() => navigate(`/quiz/${topicId}`)} className="bg-indigo-600 text-white px-6 py-3 rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200 flex items-center gap-2">Take Mastery Quiz <span>→</span></button>
+                <div className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-8 border-t border-slate-200 pb-24 mt-12">
+                  <button onClick={() => navigate(`/course/${currentSubject}`)} className="w-full sm:w-auto text-sm text-slate-500 font-bold hover:text-slate-800 transition-colors flex items-center justify-center gap-2"><span>←</span> Back to Syllabus</button>
+                  <button onClick={() => navigate(`/quiz/${topicId}`)} className="w-full sm:w-auto bg-indigo-600 text-white px-6 py-3 rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200 flex items-center justify-center gap-2">Take Mastery Quiz <span>→</span></button>
                 </div>
               </>
             ) : null}
@@ -226,10 +258,12 @@ const LessonPage = () => {
         </div>
       </div>
 
-      {/* --- CHATBOT PANEL (Snaps to Right) --- */}
+      {/* --- CHATBOT PANEL --- 
+          Responsive: Fixed overlay on mobile, flex-shrink on desktop
+      */}
       <div 
-        className={`bg-white border-l border-slate-200 transition-all duration-300 ease-in-out flex-shrink-0 flex flex-col ${
-          isChatOpen ? 'w-80 sm:w-96' : 'w-0 overflow-hidden border-none'
+        className={`bg-white border-l border-slate-200 transition-all duration-300 ease-in-out flex-shrink-0 flex flex-col fixed inset-y-0 right-0 z-50 lg:relative ${
+          isChatOpen ? 'w-full sm:w-96 translate-x-0' : 'w-0 -translate-x-full lg:translate-x-0 overflow-hidden border-none'
         }`}
       >
         <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-indigo-50/50 flex-shrink-0">
@@ -243,8 +277,9 @@ const LessonPage = () => {
               </p>
             </div>
           </div>
-          <button onClick={() => setIsChatOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors">
-            <ChevronRight size={20} />
+          <button onClick={() => setIsChatOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors p-2">
+            <X size={20} className="lg:hidden" />
+            <ChevronRight size={20} className="hidden lg:block" />
           </button>
         </div>
 
@@ -268,7 +303,7 @@ const LessonPage = () => {
           )}
         </div>
 
-        <div className="p-4 border-t border-slate-100 bg-white flex-shrink-0">
+        <div className="p-4 border-t border-slate-100 bg-white flex-shrink-0 pb-10 lg:pb-4">
           <form onSubmit={handleSendMessage} className="relative">
             <input 
               type="text" 
