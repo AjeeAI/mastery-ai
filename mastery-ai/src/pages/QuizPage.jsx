@@ -88,6 +88,9 @@ const QuizPage = () => {
   // ======================================================================
   // 2. SUBMIT QUIZ & MAP RESULTS
   // ======================================================================
+ // ======================================================================
+  // 2. SUBMIT QUIZ & MAP RESULTS
+  // ======================================================================
   const submitQuizAnswers = async (finalAnswers) => {
     setPhase('submitting');
     setError("");
@@ -118,10 +121,21 @@ const QuizPage = () => {
       if (!resultsRes.ok) throw new Error("Submitted successfully, but failed to load results.");
       const resultsJson = await resultsRes.json();
 
-      const finalScorePercentage = Math.round((resultsJson.score || 0) * 100);
+      // ==========================================================
+      // 👇 THE FIX: Smart math for Score and Accuracy 👇
+      // ==========================================================
+      const totalQs = quizData.questions.length;
+      const rawScore = resultsJson.score || 0;
+      
+      // If backend returns 60, keep 60. If it returns 0.6, make it 60.
+      const finalScorePercentage = rawScore > 1 ? rawScore : Math.round(rawScore * 100); 
+      
+      // Calculate correct points (e.g., 60% of 5 questions = 3 correct answers)
+      const correctAnswersCount = Math.round((finalScorePercentage / 100) * totalQs);
+
       const minutes = Math.floor(timeTakenSeconds / 60);
       const seconds = timeTakenSeconds % 60;
-      const totalQs = quizData.questions.length;
+      // ==========================================================
       
       const wrongConcepts = (resultsJson.concept_breakdown || [])
         .filter(c => !c.is_correct)
@@ -131,11 +145,11 @@ const QuizPage = () => {
         paths: { classLevel: currentLevel, topic: currentSubject },
         summary: {
             studentName: userData?.first_name || "Student",
-            score: Math.round((resultsJson.score || 0) * totalQs),
+            score: correctAnswersCount, // Fixed: Will show "3" instead of "300"
             total: totalQs,
             message: finalScorePercentage >= 70 ? "Great job! You've shown strong mastery of these concepts." : "Good effort! Review the insights to improve your mastery.",
             timeTaken: `${minutes}m ${seconds}s`,
-            accuracy: finalScorePercentage,
+            accuracy: finalScorePercentage, // Fixed: Will show "60" instead of "6000"
             xpEarned: submitData.xp_awarded || Math.round(finalScorePercentage * 2.5)
         },
         concepts: (resultsJson.concept_breakdown || []).map((c, i) => ({

@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Flame, Star, CheckCircle2, Clock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useUser } from '../context/UserContext'; 
 import { useNavigate } from 'react-router-dom';
@@ -7,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import HeroSection from '../components/HeroSection';
 import AIRecommendation from '../components/AIRecommendation';
-import StatCard from '../components/StatCard';
+import DashboardStats from '../components/DashboardStats'; // <-- NEW IMPORT
 import LearningMap from '../components/LearningMap';
 import LearningTasks from '../components/LearningTasks';
 import Leaderboard from '../components/Leaderboard';
@@ -33,15 +32,14 @@ export default function Dashboard() {
 
     const apiUrl = import.meta.env.VITE_API_URL;
 
-
     // 👇 ADD THIS EFFECT: The Onboarding Bouncer 👇
-  useEffect(() => {
-    // If studentData has loaded, BUT they have 0 subjects enrolled
-    if (studentData && (!studentData.subjects || studentData.subjects.length === 0)) {
-      console.log("Incomplete profile detected. Redirecting to onboarding...");
-      navigate('/class-selection');
-    }
-  }, [studentData, navigate]);
+    useEffect(() => {
+        // If studentData has loaded, BUT they have 0 subjects enrolled
+        if (studentData && (!studentData.subjects || studentData.subjects.length === 0)) {
+            console.log("Incomplete profile detected. Redirecting to onboarding...");
+            navigate('/class-selection');
+        }
+    }, [studentData, navigate]);
 
     // --- Fetch Learning Map Data ---
     useEffect(() => {
@@ -114,12 +112,8 @@ export default function Dashboard() {
                     <AIRecommendation/>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                    <StatCard icon={Flame} iconBg="bg-orange-50" iconColor="text-orange-500" title="Study Streak" value="12 Days" subtext="Personal Best!" subtextColor="text-orange-500" />
-                    <StatCard icon={Star} iconBg="bg-yellow-50" iconColor="text-yellow-500" title="Mastery Points" value="3,450" subtext="+150 today" subtextColor="text-gray-400" />
-                    <StatCard icon={CheckCircle2} iconBg="bg-green-50" iconColor="text-green-500" title="Concepts Mastered" value="28 / 45" />
-                    <StatCard icon={Clock} iconBg="bg-blue-50" iconColor="text-blue-500" title="Study Time" value="14h 20m" subtext="This week" subtextColor="text-gray-400" />
-                </div>
+                {/* 👇 Your dynamic component handles the rest now! 👇 */}
+                <DashboardStats />
 
                 {/* DYNAMIC MAP RENDERING */}
                 {!activeSubject ? (
