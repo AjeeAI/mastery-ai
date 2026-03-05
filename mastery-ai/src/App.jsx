@@ -32,14 +32,14 @@ import AssessmentSplash from './pages/AssessmentSplash';
 // --- Import Diagnostic Pages ---
 import Completed from './pages/Completed';
 import InProgress from './pages/InProgress'; 
-import Quizzes from './pages/Quizzes'; // (Old file, consider deleting if no longer used)
+// import Quizzes from './pages/Quizzes'; // (Old file, consider deleting if no longer used)
 
 // --- Import Dashboard & Lesson Flow ---
 import Dashboard from './pages/Dashboard';
 import CoursePage from './pages/CoursePage'; 
 import LessonPage from './pages/LessonPage';
 import ModuleQuizPage from './pages/ModuleQuizPage';
-import QuizResult from './pages/QuizResult';
+// import QuizResult from './pages/QuizResult';
 
 // 👇 THE FIX: IMPORT YOUR NEW QUIZ PAGE 👇
 import QuizPage from './pages/QuizPage';
@@ -105,7 +105,7 @@ function App() {
 
               {/* Module Flow */}
               <Route path="/module-quiz" element={<ModuleQuizPage />} />
-              <Route path="/quiz-result" element={<QuizResult />} />
+              {/* <Route path="/quiz-result" element={<QuizResult />} /> */}
             </Route>
 
             {/* Teacher Layout (Has Side Navigation) */}

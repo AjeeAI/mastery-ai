@@ -14,7 +14,6 @@ import FooterActions from "../components/FooterActions";
 
 const QuizPage = () => {
   const navigate = useNavigate();
-  // Ensure your App.jsx has this route: <Route path="/quiz/:topicId" element={<QuizPage />} />
   const { topicId } = useParams();
   const { token } = useAuth();
   const { studentData, userData } = useUser();
@@ -37,18 +36,16 @@ const QuizPage = () => {
   // Active Quiz Data
   const [quizData, setQuizData] = useState(null);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [selectedOption, setSelectedOption] = useState(null);
+  const [selectedOption, setSelectedOption] = useState(null); // Now tracks 'A', 'B', 'C', 'D'
   const [answers, setAnswers] = useState({});
   const [startTime, setStartTime] = useState(null);
 
-  // Formatted Results Data (Tailored for your custom components)
   const [formattedResults, setFormattedResults] = useState(null);
 
   // ======================================================================
   // 1. GENERATE QUIZ
   // ======================================================================
   const handleGenerateQuiz = async () => {
-    // 👇 ADDED SAFETY CHECK HERE
     if (!topicId) {
       setError("Missing Topic ID! Please go back to the lesson and click 'Take Mastery Quiz' again.");
       return;
@@ -69,7 +66,7 @@ const QuizPage = () => {
           subject: currentSubject,
           sss_level: currentLevel,
           term: currentTerm,
-          topic_id: topicId, // Now we guarantee this exists!
+          topic_id: topicId, 
           purpose: purpose,
           difficulty: difficulty,
           num_questions: 5 
@@ -79,7 +76,7 @@ const QuizPage = () => {
       if (!response.ok) throw new Error("Failed to generate quiz. Please try again.");
 
       const data = await response.json();
-      setQuizData(data);
+      setQuizData(data); // Injects the JSON structure you provided
       setStartTime(Date.now());
       setPhase('active');
     } catch (err) {
@@ -89,20 +86,21 @@ const QuizPage = () => {
   };
 
   // ======================================================================
-  // 2. SUBMIT QUIZ & MAP RESULTS TO YOUR COMPONENTS
+  // 2. SUBMIT QUIZ & MAP RESULTS
   // ======================================================================
   const submitQuizAnswers = async (finalAnswers) => {
     setPhase('submitting');
     setError("");
 
     const timeTakenSeconds = Math.floor((Date.now() - startTime) / 1000);
+    
+    // finalAnswers is now safely mapped as { "question_uuid": "A" }
     const formattedAnswers = Object.entries(finalAnswers).map(([qId, ans]) => ({
       question_id: qId,
-      answer: ans
+      answer: ans 
     }));
 
     try {
-      // Step A: Submit Answers
       const submitRes = await fetch(`${apiUrl}/learning/quizzes/${quizData.quiz_id}/submit`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -113,7 +111,6 @@ const QuizPage = () => {
       const submitData = await submitRes.json();
       const attemptId = submitData.attempt_id;
 
-      // Step B: Fetch Detailed Results
       const resultsRes = await fetch(`${apiUrl}/learning/quizzes/${quizData.quiz_id}/results?student_id=${activeId}&attempt_id=${attemptId}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -121,22 +118,17 @@ const QuizPage = () => {
       if (!resultsRes.ok) throw new Error("Submitted successfully, but failed to load results.");
       const resultsJson = await resultsRes.json();
 
-      // Step C: EXACT DATA MAPPING FOR YOUR CUSTOM COMPONENTS
       const finalScorePercentage = Math.round((resultsJson.score || 0) * 100);
       const minutes = Math.floor(timeTakenSeconds / 60);
       const seconds = timeTakenSeconds % 60;
       const totalQs = quizData.questions.length;
       
-      // Calculate wrong concepts for struggle points
       const wrongConcepts = (resultsJson.concept_breakdown || [])
         .filter(c => !c.is_correct)
         .map(c => `**${c.concept_id}**`);
 
       const mappedApiData = {
-        paths: {
-            classLevel: currentLevel,
-            topic: currentSubject
-        },
+        paths: { classLevel: currentLevel, topic: currentSubject },
         summary: {
             studentName: userData?.first_name || "Student",
             score: Math.round((resultsJson.score || 0) * totalQs),
@@ -149,7 +141,7 @@ const QuizPage = () => {
         concepts: (resultsJson.concept_breakdown || []).map((c, i) => ({
             id: i + 1,
             title: c.concept_id.includes('fallback') ? `Concept ${i+1}` : c.concept_id,
-            mastery: c.weight_change > 0 ? 100 : Math.max(0, 50 + (c.weight_change * 10)), // Rough visual scaling
+            mastery: c.weight_change > 0 ? 100 : Math.max(0, 50 + (c.weight_change * 10)),
             description: c.is_correct ? "Perfect! You understand this core concept." : "Needs review. Pay attention to the rules here."
         })),
         aiInsights: {
@@ -173,7 +165,8 @@ const QuizPage = () => {
   // ======================================================================
   // ACTIVE QUIZ HANDLERS
   // ======================================================================
-  const handleSelectOption = (optionValue) => setSelectedOption(optionValue);
+  // 👇 Now takes the Letter (A, B, C, D) instead of the long string
+  const handleSelectOption = (optionLetter) => setSelectedOption(optionLetter);
 
   const handleNextOrSubmit = () => {
     const currentQuestion = quizData.questions[currentIndex];
@@ -185,6 +178,7 @@ const QuizPage = () => {
     if (isLastQuestion) submitQuizAnswers(updatedAnswers);
     else {
       setCurrentIndex(currentIndex + 1);
+      // Load previously selected answer if they navigate back (future proofing)
       setSelectedOption(updatedAnswers[quizData.questions[currentIndex + 1].id] || null);
     }
   };
@@ -202,7 +196,6 @@ const QuizPage = () => {
       setSelectedOption(updatedAnswers[quizData.questions[currentIndex + 1].id] || null);
     }
   };
-
 
   // ======================================================================
   // RENDER: SETUP PHASE
@@ -281,16 +274,19 @@ const QuizPage = () => {
           <div className="bg-white rounded-3xl p-6 md:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 w-full max-w-3xl">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10">
               {currentQuestion.options.map((option, i) => {
-                const optValue = typeof option === 'string' ? option : option.text || option.value;
-                const isSelected = selectedOption === optValue;
-                const optionLetter = String.fromCharCode(65 + i);
+                // Determine 'A', 'B', 'C', 'D'
+                const optionLetter = String.fromCharCode(65 + i); 
+                // Safely grab the text from your JSON structure
+                const optText = typeof option === 'string' ? option : option.text || option.value;
+                // 👇 Now comparing the selected 'A'/'B' against this specific tile's letter
+                const isSelected = selectedOption === optionLetter;
                 
                 return (
-                  <div key={i} onClick={() => handleSelectOption(optValue)} className={`border-2 rounded-2xl p-5 flex items-center gap-4 cursor-pointer transition-all duration-200 ${isSelected ? 'border-[#6b46c1] bg-indigo-50/30' : 'border-slate-100 hover:border-slate-200 hover:bg-slate-50'}`}>
+                  <div key={i} onClick={() => handleSelectOption(optionLetter)} className={`border-2 rounded-2xl p-5 flex items-center gap-4 cursor-pointer transition-all duration-200 ${isSelected ? 'border-[#6b46c1] bg-indigo-50/30' : 'border-slate-100 hover:border-slate-200 hover:bg-slate-50'}`}>
                     <div className={`w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center transition-colors ${isSelected ? 'border-[6px] border-[#6b46c1] bg-white' : 'border-2 border-slate-300 bg-white'}`}></div>
                     <div className="flex flex-col">
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Option {optionLetter}</span>
-                      <span className={`text-sm font-bold ${isSelected ? 'text-[#6b46c1]' : 'text-slate-700'}`}>{optValue}</span>
+                      <span className={`text-sm font-bold ${isSelected ? 'text-[#6b46c1]' : 'text-slate-700'}`}>{optText}</span>
                     </div>
                   </div>
                 );

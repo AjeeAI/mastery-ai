@@ -34,8 +34,20 @@ const Navbar = () => {
     : 'Student';
 
   // 3. Safely extract the academic level from the student profile
-  // If the profile hasn't loaded or isn't set, default to "Student" or "SSS 2"
   const displayLevel = studentData?.sss_level || 'Student';
+
+  // 4. Safely extract the avatar URL from the backend
+  const avatarUrl = userData?.avatar_url || null;
+
+  // 5. HELPER FUNCTION: Extracts initials from the user's name
+  const getInitials = (name) => {
+    if (!name || name === 'Student') return "U"; // Fallback to 'U' for User
+    const nameParts = name.trim().split(" ");
+    if (nameParts.length >= 2) {
+      return `${nameParts[0][0]}${nameParts[nameParts.length - 1][0]}`.toUpperCase();
+    }
+    return nameParts[0][0].toUpperCase();
+  };
 
   return (
     <nav className="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between sticky top-0 z-50">
@@ -96,13 +108,22 @@ const Navbar = () => {
               {displayName}
             </p>
             <p className="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-full inline-block mt-0.5 uppercase tracking-wider">
-              {/* 4. Display the dynamically loaded class level! */}
               {displayLevel} • Gold League
             </p>
           </div>
-          <div className="w-10 h-10 rounded-full overflow-hidden border border-slate-200">
-            <img src="https://i.pravatar.cc/150?img=11" alt="Profile" className="w-full h-full object-cover" />
+          
+          {/* 👇 Updated Dynamic Avatar Logic 👇 */}
+          <div className="w-10 h-10 rounded-full overflow-hidden border border-slate-200 bg-indigo-50 flex items-center justify-center flex-shrink-0">
+            {avatarUrl ? (
+              <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-sm font-black text-indigo-600 tracking-widest">
+                {getInitials(displayName)}
+              </span>
+            )}
           </div>
+          {/* 👆 End Dynamic Avatar Logic 👆 */}
+          
         </NavLink>
 
       </div>
