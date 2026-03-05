@@ -88,9 +88,6 @@ const LearningPreferences = () => {
         },
         body: JSON.stringify({ 
           student_id: activeId, // 👈 Now safely passing the ID
-          // sss_level: studentData?.sss_level || "SSS1", 
-          // subjects: studentData?.subjects || ["math", "english"], 
-          // term: studentData?.current_term || 1,
           preferences: preferencesPayload 
         }),
         signal: controller.signal

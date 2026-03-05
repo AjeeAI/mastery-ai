@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Flame, Star, CheckCircle2, Clock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useUser } from '../context/UserContext'; 
+import { useNavigate } from 'react-router-dom';
 
 import Header from '../components/Header';
 import HeroSection from '../components/HeroSection';
@@ -15,7 +16,7 @@ import Footer from '../components/Footer';
 export default function Dashboard() {
     const { token } = useAuth();
     const { userData, studentData } = useUser(); 
-
+    const navigate = useNavigate();
     const fullName = userData ? `${userData.first_name || ''} ${userData.last_name || ''}`.trim() : 'Student';
     const activeId = studentData?.user_id || userData?.id;
     const currentLevel = studentData?.sss_level || 'SSS1';
@@ -30,7 +31,17 @@ export default function Dashboard() {
     const [mapNodes, setMapNodes] = useState([]);
     const [isLoadingMap, setIsLoadingMap] = useState(false);
 
-    const apiUrl = import.meta.env.VITE_API_URL || 'https://mastery-backend-7xe8.onrender.com/api/v1';
+    const apiUrl = import.meta.env.VITE_API_URL;
+
+
+    // 👇 ADD THIS EFFECT: The Onboarding Bouncer 👇
+  useEffect(() => {
+    // If studentData has loaded, BUT they have 0 subjects enrolled
+    if (studentData && (!studentData.subjects || studentData.subjects.length === 0)) {
+      console.log("Incomplete profile detected. Redirecting to onboarding...");
+      navigate('/class-selection');
+    }
+  }, [studentData, navigate]);
 
     // --- Fetch Learning Map Data ---
     useEffect(() => {

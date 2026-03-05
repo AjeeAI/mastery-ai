@@ -18,10 +18,50 @@ const LoginPage = () => {
   const GOOGLE_CLIENT_ID = rawClientId.replace(/['"]/g, '').trim();
   const apiUrl = import.meta.env.VITE_API_URL || 'https://mastery-backend-7xe8.onrender.com/api/v1';
 
+  // --- MODIFIED: Connects to your FastAPI /google endpoint ---
   const handleGoogleSuccess = async (credentialResponse) => {
-    login("mock-google-token-123");
-    navigate('/dashboard'); 
+    setIsLoading(true);
+    setError("");
+
+    try {
+      // Send the Google JWT token to your backend
+      const response = await fetch(`${apiUrl}/auth/google`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          token: credentialResponse.credential // This matches your GoogleLoginIn schema
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.detail || "Google login failed on the server.");
+      }
+
+      // Backend AuthOut returns access_token and user details
+      const data = await response.json();
+      
+      // Store the user ID so the dashboard can access it
+      if (data.user_id) {
+        localStorage.setItem("mastery_student_id", data.user_id);
+      }
+
+      // Log the user into the app using your AuthContext
+      login(data.access_token);
+      
+      // Route to dashboard since they are an existing user
+      navigate('/dashboard'); 
+
+    } catch (err) {
+      console.error("Google Auth API Error:", err);
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
   };
+  // ---------------------------------------------------------
 
   const validateForm = () => {
     const newErrors = {};
@@ -202,7 +242,7 @@ const LoginPage = () => {
             <div className="flex-grow border-t border-slate-200"></div>
           </div>
 
-          <div className="flex justify-center w-full [&>div]:w-full">
+          <div className="flex justify-center w-full">
             <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
               <GoogleLogin onSuccess={handleGoogleSuccess} onError={() => setError("Google Login Failed.")} useOneTap theme="outline" size="large" text="continue_with" width="100%" shape="rectangular" />
             </GoogleOAuthProvider>
