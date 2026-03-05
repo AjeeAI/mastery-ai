@@ -33,7 +33,7 @@ const ClassSelection = () => {
   const [availableGrades, setAvailableGrades] = useState([]);
   const [availableTerms, setAvailableTerms] = useState([]);
 
-  const handleContinue = async () => {
+const handleContinue = async () => {
     if (!selectedGrade || !selectedTerm) {
       alert("Please select both your grade and your current term.");
       return;
@@ -42,10 +42,10 @@ const ClassSelection = () => {
     setIsLoading(true);
     setErrorMsg("");
 
-    let activeId = studentData?.user_id || userData?.id;
+    // Bulletproof ID extraction
+    let activeId = studentData?.user_id || studentData?.student_id || userData?.user_id || userData?.id;
 
     try {
-      // BULLETPROOF CHECK: If the ID isn't in state, fetch it directly from /users/me
       if (!activeId) {
         const userMeResponse = await fetch(`${apiUrl}/users/me`, {
           method: 'GET',
@@ -55,50 +55,70 @@ const ClassSelection = () => {
           }
         });
 
-        if (!userMeResponse.ok) {
-          throw new Error("Could not verify user session. Please log in again.");
+        if (userMeResponse.ok) {
+          const userMeData = await userMeResponse.json();
+          activeId = userMeData.user_id || userMeData.id; 
         }
-
-        const userMeData = await userMeResponse.json();
-        activeId = userMeData.user_id; // Extract the ID from the /users/me response
       }
 
-      // If it's STILL missing after the fetch, completely abort
       if (!activeId) {
         throw new Error("User ID is missing. Please contact support or try logging in again.");
       }
 
-      // Now we confidently hit the setup endpoint
-      const response = await fetch(`${apiUrl}/students/profile/setup`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          student_id: activeId,               // Guaranteed to have the ID now!
-          sss_level: selectedGrade,           
-          current_term: parseInt(selectedTerm, 10), 
-          term: parseInt(selectedTerm, 10),        
-          subjects: []                        
-        }),
+      const headers = {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      };
+
+      // Base payload for updating (No student_id to prevent 422 Strict Backend errors)
+      const basePayload = {
+        sss_level: selectedGrade,          
+        current_term: parseInt(selectedTerm, 10), 
+        term: parseInt(selectedTerm, 10),        
+        subjects: [] // Empty subjects for now, they pick this on the next screen                      
+      };
+
+      // 1. STRATEGY REVERSAL: Try to UPDATE (PUT) the existing profile first!
+      let response = await fetch(`${apiUrl}/students/profile`, {
+        method: 'PUT',
+        headers: headers,
+        body: JSON.stringify(basePayload)
       });
 
+      // 2. THE FALLBACK: If PUT fails, check if it's because the profile DOESN'T exist yet
       if (!response.ok) {
-        const errData = await response.json();
+        const errData = await response.json().catch(() => ({}));
         
-        const readableError = errData.detail && Array.isArray(errData.detail) 
-          ? errData.detail.map(e => `${e.loc[e.loc.length - 1]}: ${e.msg}`).join(", ")
-          : errData.detail || "Failed to save setup. Please try again.";
-        throw new Error(readableError);
+        // If the backend returns 404 Not Found, we know we need to CREATE it
+        if (response.status === 404 || (errData.detail && errData.detail.includes("not found"))) {
+          console.log("Profile not found. Switching to POST (Create) request...");
+          
+          const setupPayload = { student_id: activeId, ...basePayload };
+
+          response = await fetch(`${apiUrl}/students/profile/setup`, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify(setupPayload),
+          });
+
+          if (!response.ok) {
+             const postErrData = await response.json().catch(() => ({}));
+             const postErrorMsg = postErrData.detail 
+                ? (Array.isArray(postErrData.detail) ? postErrData.detail[0]?.msg : postErrData.detail)
+                : "Failed to create your class profile.";
+             throw new Error(postErrorMsg);
+          }
+        } else {
+          // If the original PUT failed for a different reason (like a 500 error), throw it
+          const rawError = errData.detail 
+            ? (Array.isArray(errData.detail) ? errData.detail[0]?.msg : errData.detail)
+            : "Failed to save your class settings.";
+          throw new Error(rawError);
+        }
       }
 
-      // Update global context so the UI reflects the new grade/term immediately
-      updateLocalStudent({
-        sss_level: selectedGrade,
-        current_term: parseInt(selectedTerm, 10),
-        subjects: []
-      });
+      // 3. Success! Update Context & Navigate
+      updateLocalStudent(basePayload);
 
       navigate('/subject-selection', { 
         state: { grade: selectedGrade, term: selectedTerm } 

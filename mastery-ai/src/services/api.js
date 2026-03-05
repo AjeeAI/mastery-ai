@@ -74,17 +74,23 @@ export const fetchStudentProfile = async (token) => {
 
     clearTimeout(timeoutId);
 
+    // 👇 Let the error be thrown so the Context can catch it!
     if (!response.ok) {
-      // If a user hasn't finished onboarding, they might not have a student profile yet.
-      // Returning null prevents the whole app from crashing.
-      if (response.status === 404) return null; 
-      throw new Error("Failed to fetch student profile");
+      const errData = await response.json().catch(() => null);
+      
+      // We throw the exact detail from the backend (e.g., "Student profile not found")
+      // or default to a generic message if the backend didn't send a detail.
+      throw new Error(errData?.detail || "Failed to fetch student profile");
     }
     
     return await response.json();
+    
   } catch (error) {
     clearTimeout(timeoutId);
-    console.warn("Could not load student profile:", error);
-    return null;
+    console.warn("fetchStudentProfile Error:", error.message);
+    
+    // 👇 WE MUST RE-THROW THE ERROR HERE
+    // If we just return null, the UserContext won't know it failed.
+    throw error; 
   }
 };

@@ -45,10 +45,10 @@ const SubjectSelection = () => {
     setIsLoading(true);
     setErrorMsg("");
 
-    let activeId = studentData?.user_id || userData?.id;
+    let activeId = studentData?.user_id || studentData?.student_id || userData?.user_id || userData?.student_id || userData?.id;
 
     try {
-      // 1. BULLETPROOF CHECK: Fallback to /users/me
+      // 1. BULLETPROOF CHECK: Fallback to /users/me if ID is missing
       if (!activeId) {
         const userMeResponse = await fetch(`${apiUrl}/users/me`, {
           method: 'GET',
@@ -63,7 +63,7 @@ const SubjectSelection = () => {
         }
 
         const userMeData = await userMeResponse.json();
-        activeId = userMeData.user_id; 
+        activeId = userMeData.user_id || userMeData.id; 
       }
 
       if (!activeId) {
@@ -73,57 +73,65 @@ const SubjectSelection = () => {
       const grade = location.state?.grade || studentData?.sss_level || "SSS1";
       const term = parseInt(location.state?.term || studentData?.current_term || 1, 10);
 
-      // 2. Build Full Payload
-      const payload = {
-        student_id: activeId,
+      const headers = {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      };
+
+      // 2. Build the UPDATE payload (No student_id included - prevents 422 errors on PUT)
+      const updatePayload = {
         sss_level: grade,
         current_term: term,
         term: term, 
         subjects: selectedSubjects
       };
 
-      const headers = {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
+      // 3. Build the SETUP payload (Includes student_id for POST)
+      const setupPayload = {
+        student_id: activeId,
+        ...updatePayload
       };
 
-      // 3. Attempt POST (Creation) first
+      // 4. Attempt POST (Creation) first
       let response = await fetch(`${apiUrl}/students/profile/setup`, {
         method: 'POST', 
         headers: headers,
-        body: JSON.stringify(payload)
+        body: JSON.stringify(setupPayload)
       });
 
-      // 4. THE FALLBACK: If it fails, check if it's because it already exists
+      // 5. THE FALLBACK: If POST fails, pivot to PUT
       if (!response.ok) {
-        const errData = await response.json();
-        const readableError = errData.detail && Array.isArray(errData.detail) 
-          ? errData.detail.map(e => `${e.loc[e.loc.length - 1]}: ${e.msg}`).join(", ")
-          : errData.detail || "Failed to save your subjects.";
+        const errData = await response.json().catch(() => ({}));
+        
+        // Safely extract the error message
+        const rawError = errData.detail 
+          ? (Array.isArray(errData.detail) ? errData.detail[0]?.msg : errData.detail)
+          : "";
 
-        // If the backend complains the profile exists, switch to PUT and try again!
-        if (readableError.toLowerCase().includes("already exists")) {
+        // If the backend says it already exists, use the PUT endpoint!
+        if (typeof rawError === 'string' && rawError.toLowerCase().includes("already exists")) {
+          console.log("Profile exists. Switching to PUT (Update) request...");
+          
           response = await fetch(`${apiUrl}/students/profile`, {
-            method: 'PUT', // Change method to PUT to update instead of create
+            method: 'PUT', 
             headers: headers,
-            body: JSON.stringify(payload)
+            body: JSON.stringify(updatePayload) // <--- Sending the clean payload here!
           });
 
-          // If the PUT also fails, throw the new error
           if (!response.ok) {
-             const putErrData = await response.json();
-             const putReadableError = putErrData.detail && Array.isArray(putErrData.detail) 
-                ? putErrData.detail.map(e => `${e.loc[e.loc.length - 1]}: ${e.msg}`).join(", ")
-                : putErrData.detail || "Failed to update your subjects.";
-             throw new Error(putReadableError);
+             const putErrData = await response.json().catch(() => ({}));
+             const putErrorMsg = putErrData.detail 
+                ? (Array.isArray(putErrData.detail) ? putErrData.detail[0]?.msg : putErrData.detail)
+                : "Failed to update your subjects.";
+             throw new Error(`Update failed: ${putErrorMsg}`);
           }
         } else {
-          // If it failed for a different reason (like missing data), throw the original error
-          throw new Error(readableError);
+          // If it failed for a different reason (like a 500 error), throw it
+          throw new Error(rawError || "Failed to save your subjects.");
         }
       }
 
-      // 5. Update Context & Navigate
+      // 6. Success! Update Context & Navigate
       updateLocalStudent({ subjects: selectedSubjects });
       navigate('/learning-preferences');
 

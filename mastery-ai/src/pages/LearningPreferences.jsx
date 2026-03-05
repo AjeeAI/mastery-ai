@@ -10,7 +10,7 @@ const LearningPreferences = () => {
   const apiUrl = import.meta.env.VITE_API_URL;
 
   // 👇 Safely grab the ID from either context location
-  const activeId = studentData?.student_id || userData?.user_id; 
+  const activeId = studentData?.student_id || userData?.user_id || studentData?.user_id || userData?.id; 
 
   const [selectedStyles, setSelectedStyles] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
