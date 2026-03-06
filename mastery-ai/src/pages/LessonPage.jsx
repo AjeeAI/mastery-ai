@@ -130,7 +130,7 @@ const LessonPage = () => {
 
       if (!response.ok) throw new Error();
       const data = await response.json();
-      setMessages(prev => [...prev, { role: 'assistant', content: data.assistant_message }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: data.assistant_message, citation: data.citations }]);
     } catch (err) {
       setMessages(prev => [...prev, { role: 'assistant', content: "I'm having trouble connecting. Could you try that again?" }]);
     } finally {
@@ -289,8 +289,20 @@ const LessonPage = () => {
           </div>
 
           {messages.map((msg, i) => (
-            <div key={i} className={`p-4 rounded-2xl max-w-[90%] leading-relaxed ${msg.role === 'student' ? 'bg-indigo-600 text-white ml-auto rounded-tr-sm shadow-md' : 'bg-slate-50 border border-slate-100 text-slate-600 mr-auto rounded-tl-sm'}`}>
-              {msg.content}
+            <div key={i}>
+              <div className={`p-4 rounded-2xl max-w-[90%] leading-relaxed ${msg.role === 'student' ? 'bg-indigo-600 text-white ml-auto rounded-tr-sm shadow-md' : 'bg-slate-50 border border-slate-100 text-slate-600 mr-auto rounded-tl-sm'}`}>
+                {msg.content}
+              </div>
+              {msg.citation && (
+                <div className="text-[10px] text-slate-500 mt-2">
+                  <p>Citations:</p>
+                  <ul className="list-disc list-inside">
+                    {msg.citation.map((cite, idx) => (
+                      <li key={idx}>{cite}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           ))}
 
