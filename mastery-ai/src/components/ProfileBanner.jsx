@@ -33,8 +33,12 @@ const ProfileBanner = ({ user, onImageUpload }) => {
   };
 
   // Determine what to show
-  const displayImage = previewUrl || user.avatarUrl;
-  const userName = user.name || user.fullName;
+  const displayImage = previewUrl || user.avatarUrl || user.avatar_url; // Safely check backend snake_case too
+  
+  // Construct the name exactly like the Navbar does!
+  const userName = user.first_name 
+    ? `${user.first_name} ${user.last_name || ''}`.trim() 
+    : user.name || user.fullName || "Student";
 
   return (
     <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col md:flex-row items-center md:items-start justify-between gap-6">

@@ -1,49 +1,53 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
 
-// --- Providers & Guards ---
+// --- Providers & Guards (KEEP THESE STANDARD) ---
+// These are needed immediately for the app to function
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import { UserProvider } from './context/UserContext';
 
-// --- Import Layout Components ---
+// --- Layout Components (KEEP THESE STANDARD) ---
+// Layouts are used across many pages, so keeping them standard is usually better
 import Navbar from './components/Navbar';
 import TeacherSidebar from './components/TeacherSidebar';
 import LandingLayout from './layouts/LandingLayout'; 
 
-// --- Import Public Pages ---
-import HomePage from './pages/HomePage'; 
-import AboutPage from './pages/AboutPage'; 
-import Contactpage from './pages/ContactPage';
+// --- 🚀 LAZY LOADED PAGES ---
+// Public Pages
+const HomePage = lazy(() => import('./pages/HomePage'));
+const AboutPage = lazy(() => import('./pages/AboutPage'));
+const Contactpage = lazy(() => import('./pages/ContactPage'));
+const LoginPage = lazy(() => import('./pages/LoginPage'));
+const RegisterPage = lazy(() => import('./pages/RegisterPage'));
 
-// --- Import Core Pages ---
-import LoginPage from './pages/LoginPage';
-import RegisterPage from './pages/RegisterPage';
-import ExplainMistakePage from './pages/ExplainMistakePage';
-import ProfilePage from './pages/ProfilePage';
-import ConceptAnalyticsPage from './pages/ConceptAnalyticsPage';
+// Onboarding
+const ClassSelection = lazy(() => import('./pages/ClassSelection'));
+const SubjectSelection = lazy(() => import('./pages/SubjectSelection'));
+const LearningPreferences = lazy(() => import('./pages/LearningPreferences'));
+const AssessmentSplash = lazy(() => import('./pages/AssessmentSplash'));
 
-// --- Import Onboarding Pages ---
-import ClassSelection from './pages/ClassSelection';
-import SubjectSelection from './pages/SubjectSelection';
-import LearningPreferences from './pages/LearningPreferences';
-import AssessmentSplash from './pages/AssessmentSplash';
+// Core Student Pages
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const CoursePage = lazy(() => import('./pages/CoursePage')); 
+const LessonPage = lazy(() => import('./pages/LessonPage'));
+const QuizPage = lazy(() => import('./pages/QuizPage'));
+const ProfilePage = lazy(() => import('./pages/ProfilePage'));
+const ExplainMistakePage = lazy(() => import('./pages/ExplainMistakePage'));
 
-// --- Import Diagnostic Pages ---
-import Completed from './pages/Completed';
-import InProgress from './pages/InProgress'; 
-// import Quizzes from './pages/Quizzes'; // (Old file, consider deleting if no longer used)
+// Diagnostic/Results
+const InProgress = lazy(() => import('./pages/InProgress')); 
+const Completed = lazy(() => import('./pages/Completed'));
+const ModuleQuizPage = lazy(() => import('./pages/ModuleQuizPage'));
+const ConceptAnalyticsPage = lazy(() => import('./pages/ConceptAnalyticsPage'));
 
-// --- Import Dashboard & Lesson Flow ---
-import Dashboard from './pages/Dashboard';
-import CoursePage from './pages/CoursePage'; 
-import LessonPage from './pages/LessonPage';
-import ModuleQuizPage from './pages/ModuleQuizPage';
-// import QuizResult from './pages/QuizResult';
-
-// 👇 THE FIX: IMPORT YOUR NEW QUIZ PAGE 👇
-import QuizPage from './pages/QuizPage';
-
+// --- Loading Fallback ---
+const PageLoader = () => (
+  <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center">
+    <div className="w-12 h-12 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin mb-4"></div>
+    <p className="text-slate-500 font-medium animate-pulse">Loading MasteryAI...</p>
+  </div>
+);
 
 /* --- Layout Wrappers --- */
 const StudentLayout = () => (
@@ -64,58 +68,56 @@ function App() {
   return (
     <AuthProvider>
       <UserProvider>
+        {/* 👇 Suspense handles the "Wait" while a new page chunk is being downloaded */}
+        <Suspense fallback={<PageLoader />}>
           <Routes>
-          
-          {/* 🌐 PUBLIC LANDING PAGES (Has Top Navigation & Footer) */}
-          <Route element={<LandingLayout />}>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/about" element={<AboutPage />} />
-            <Route path="/contact" element={<Contactpage />} />
-          </Route>
-
-          {/* 🔓 PUBLIC AUTH ROUTES (No Navbar, No Footer) */}
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-          
-          {/* 🔒 PROTECTED ROUTES (Requires Login) */}
-          <Route element={<ProtectedRoute />}>
             
-            {/* Onboarding Flow (Standalone, no Navbar) */}
-            <Route path="/class-selection" element={<ClassSelection />} />
-            <Route path="/subject-selection" element={<SubjectSelection />} />
-            <Route path="/learning-preferences" element={<LearningPreferences />} />
-            <Route path="/assessment-splash" element={<AssessmentSplash />} />
-
-            {/* Student Layout (Has Top Navbar) */}
-            <Route element={<StudentLayout />}>
-              <Route path="/dashboard" element={<Dashboard />} />
-              
-              <Route path="/course/:subject" element={<CoursePage />} /> 
-              <Route path="/lesson/:topicId" element={<LessonPage />} />
-              
-              <Route path="/mastery-path" element={<ExplainMistakePage />} />
-              <Route path="/profile" element={<ProfilePage />} />
-              
-              {/* Diagnostic & Mastery Quiz Flow */}
-              {/* This route perfectly matches the LessonPage button: navigate(`/quiz/${topicId}`) */}
-              <Route path="/quiz/:topicId" element={<QuizPage />} />
-              
-              <Route path="/quiz/:quizId/in-progress" element={<InProgress />} />
-              <Route path="/quiz/:quizId/completed" element={<Completed />} />
-
-              {/* Module Flow */}
-              <Route path="/module-quiz" element={<ModuleQuizPage />} />
-              {/* <Route path="/quiz-result" element={<QuizResult />} /> */}
+            {/* 🌐 PUBLIC LANDING PAGES */}
+            <Route element={<LandingLayout />}>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/about" element={<AboutPage />} />
+              <Route path="/contact" element={<Contactpage />} />
             </Route>
 
-            {/* Teacher Layout (Has Side Navigation) */}
-            <Route path="/teacher" element={<TeacherLayout />}>
-              <Route index element={<Navigate to="analytics" />} />
-              <Route path="analytics" element={<ConceptAnalyticsPage />} />
-            </Route>
+            {/* 🔓 PUBLIC AUTH ROUTES */}
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            
+            {/* 🔒 PROTECTED ROUTES */}
+            <Route element={<ProtectedRoute />}>
+              
+              {/* Onboarding Flow */}
+              <Route path="/class-selection" element={<ClassSelection />} />
+              <Route path="/subject-selection" element={<SubjectSelection />} />
+              <Route path="/learning-preferences" element={<LearningPreferences />} />
+              <Route path="/assessment-splash" element={<AssessmentSplash />} />
 
-          </Route>
-        </Routes>
+              {/* Student Layout */}
+              <Route element={<StudentLayout />}>
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/course/:subject" element={<CoursePage />} /> 
+                <Route path="/lesson/:topicId" element={<LessonPage />} />
+                <Route path="/mastery-path" element={<ExplainMistakePage />} />
+                <Route path="/profile" element={<ProfilePage />} />
+                
+                {/* Diagnostic & Mastery Quiz Flow */}
+                <Route path="/quiz/:topicId" element={<QuizPage />} />
+                <Route path="/quiz/:quizId/in-progress" element={<InProgress />} />
+                <Route path="/quiz/:quizId/completed" element={<Completed />} />
+
+                {/* Module Flow */}
+                <Route path="/module-quiz" element={<ModuleQuizPage />} />
+              </Route>
+
+              {/* Teacher Layout */}
+              <Route path="/teacher" element={<TeacherLayout />}>
+                <Route index element={<Navigate to="analytics" />} />
+                <Route path="analytics" element={<ConceptAnalyticsPage />} />
+              </Route>
+
+            </Route>
+          </Routes>
+        </Suspense>
       </UserProvider>
     </AuthProvider>
   );

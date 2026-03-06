@@ -58,15 +58,19 @@ const ProfilePage = () => {
   // ======================================================================
   // 2. DATA BLENDING
   // ======================================================================
-  const activeUser = {
+ const activeUser = {
     ...profileData.user,
+    // Add first and last name directly to the object so ProfileBanner can use them!
+    first_name: userData?.first_name,
+    last_name: userData?.last_name,
     name: userData ? `${userData.first_name || ''} ${userData.last_name || ''}`.trim() : profileData.user.name,
     email: userData?.email || profileData.user.email,
     gradeLevel: studentData?.sss_level || "SSS 1",
-    league: "Bronze League", 
+    league: "Gold League", 
     masteryPoints: studentData?.mastery_score || 0,
-    // Safely extract the avatar URL from the backend, or use a nice placeholder
-    avatarUrl: userData?.avatar_url || "https://ui-avatars.com/api/?name=User&background=EEF2FF&color=6B46C1"
+    
+    // 👇 THE FIX: Set this to null so ProfileBanner's getInitials takes over
+    avatarUrl: userData?.avatar_url || null
   };
 
   return (
