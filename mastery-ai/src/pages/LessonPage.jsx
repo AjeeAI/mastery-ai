@@ -4,6 +4,10 @@ import { useAuth } from '../context/AuthContext';
 import { useUser } from '../context/UserContext';
 import CourseSidebar from '../components/CourseSidebar';
 import { Menu, X, MessageSquare, Send, ChevronRight, BookOpen } from 'lucide-react';
+import remarkGfm from 'remark-gfm';
+import ReactMarkdown from 'react-markdown';
+// 👇 1. IMPORT REHYPE-RAW TO HANDLE HTML
+import rehypeRaw from 'rehype-raw';
 
 const LessonPage = () => {
   const navigate = useNavigate();
@@ -17,7 +21,6 @@ const LessonPage = () => {
   const currentTerm = studentData?.current_term || 1;
 
   // --- UI STATE ---
-  // Defaulting to closed on mobile for better UX
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 1024);
   const [isChatOpen, setIsChatOpen] = useState(window.innerWidth > 1280); 
 
@@ -33,6 +36,12 @@ const LessonPage = () => {
   const [chatInput, setChatInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const scrollRef = useRef(null);
+
+  // 👇 THE AUTO-ENTER FIX FOR TABLES
+  const formatAIMessage = (text) => {
+    if (!text) return "";
+    return text.replace(/\|\s*\|/g, '|\n|');
+  };
 
   const apiUrl = import.meta.env.VITE_API_URL || 'https://mastery-backend-7xe8.onrender.com/api/v1';
 
@@ -174,9 +183,7 @@ const LessonPage = () => {
   return (
     <div className="flex bg-slate-50 h-[calc(100vh-64px)] overflow-hidden relative">
       
-      {/* --- SIDEBAR --- 
-          Responsive: Fixed overlay on mobile, flex-shrink on desktop
-      */}
+      {/* --- SIDEBAR --- */}
       {isSidebarOpen && (
         <div 
           className="fixed inset-0 bg-slate-900/40 z-50 lg:hidden" 
@@ -193,8 +200,6 @@ const LessonPage = () => {
 
       {/* --- MAIN CONTENT --- */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
-        
-        {/* TOP BAR FOR TOGGLES */}
         <div className="h-14 border-b border-slate-200 bg-white flex items-center justify-between px-4 flex-shrink-0">
           <button 
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -258,9 +263,7 @@ const LessonPage = () => {
         </div>
       </div>
 
-      {/* --- CHATBOT PANEL --- 
-          Responsive: Fixed overlay on mobile, flex-shrink on desktop
-      */}
+      {/* --- CHATBOT PANEL --- */}
       <div 
         className={`bg-white border-l border-slate-200 transition-all duration-300 ease-in-out flex-shrink-0 flex flex-col fixed inset-y-0 right-0 z-50 lg:relative ${
           isChatOpen ? 'w-full sm:w-96 translate-x-0' : 'w-0 -translate-x-full lg:translate-x-0 overflow-hidden border-none'
@@ -290,15 +293,35 @@ const LessonPage = () => {
 
           {messages.map((msg, i) => (
             <div key={i}>
-              <div className={`p-4 rounded-2xl max-w-[90%] leading-relaxed ${msg.role === 'student' ? 'bg-indigo-600 text-white ml-auto rounded-tr-sm shadow-md' : 'bg-slate-50 border border-slate-100 text-slate-600 mr-auto rounded-tl-sm'}`}>
-                {msg.content}
+              <div 
+                className={`p-4 rounded-2xl max-w-[95%] leading-relaxed ${
+                  msg.role === 'student' 
+                    ? 'bg-indigo-600 text-white ml-auto rounded-tr-sm shadow-md' 
+                    : 'bg-slate-50 border border-slate-100 text-slate-600 mr-auto rounded-tl-sm prose prose-sm prose-slate max-w-none prose-td:align-top prose-th:p-3 prose-td:p-3'
+                }`}
+              >
+                {/* 👇 2. ADDED REHYPE-RAW TO THE COMPONENT HERE 👇 */}
+                {msg.role === 'assistant' ? (
+                  <ReactMarkdown 
+                    remarkPlugins={[remarkGfm]} 
+                    rehypePlugins={[rehypeRaw]}
+                  >
+                    {formatAIMessage(msg.content)}
+                  </ReactMarkdown>
+                ) : (
+                  msg.content
+                )}
               </div>
+              
+              {/* THE CITATION CRASH FIX */}
               {msg.citation && (
                 <div className="text-[10px] text-slate-500 mt-2">
-                  <p>Citations:</p>
-                  <ul className="list-disc list-inside">
+                  <p className="font-bold">Sources:</p>
+                  <ul className="list-disc list-inside mt-1">
                     {msg.citation.map((cite, idx) => (
-                      <li key={idx}>{cite}</li>
+                      <li key={idx} className="truncate">
+                        {typeof cite === 'string' ? cite : cite.snippet || `Source: ${cite.source_id}`}
+                      </li>
                     ))}
                   </ul>
                 </div>

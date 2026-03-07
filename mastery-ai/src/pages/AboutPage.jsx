@@ -125,10 +125,17 @@ const AboutPage = () => {
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8">
           {[
-            { name: 'Sarah Jenkins', role: 'CEO & CO-FOUNDER', img: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=256&q=80' },
-            { name: 'David Okafor', role: 'COO & CO-FOUNDER', img: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&q=80' },
-            { name: 'Emily Roberts', role: 'CTO', img: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=256&q=80' },
-            { name: 'Oluwaseun A.', role: 'PRODUCT LEAD', img: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=256&q=80' }
+            { name: 'Saheed Olayinka', role: 'Team Lead/AI Engineering Lead', img: 'https://res.cloudinary.com/dzt3imk5w/image/upload/v1772798203/WhatsApp_Image_2026-03-04_at_9.54.02_PM_1_j7gr3n.jpg' },
+            { name: 'Ajijolaoluwa Adesoji', role: 'Co-Team Lead/AI Development Lead', img: 'https://res.cloudinary.com/dzt3imk5w/image/upload/v1772803812/IMG_20260306_133457_xsem0i.jpg' },
+            { name: 'Olusola Somorin', role: 'AI Developer/ UI/UX Designer', img: 'https://res.cloudinary.com/dzt3imk5w/image/upload/v1772803813/IMG_20260306_133349_bp73pp.jpg' },
+            { name: 'Favour Olaoshebikan', role: 'AI Developer', img: 'https://res.cloudinary.com/dzt3imk5w/image/upload/v1772798204/WhatsApp_Image_2026-03-05_at_6.12.37_AM_bad9aq.jpg' },
+            { name: 'Gbolahan', role: 'AI Developer', img: 'https://res.cloudinary.com/dzt3imk5w/image/upload/v1772798203/WhatsApp_Image_2026-03-05_at_10.58.47_AM_1_q8ykgg.jpg' },
+            { name: 'Adebimpe Atoyebi', role: 'AI Developer', img: 'https://res.cloudinary.com/dzt3imk5w/image/upload/v1772798203/WhatsApp_Image_2026-03-04_at_9.55.51_PM_1_y8j5xg.jpg' },
+            // Add two more real team members here to make it a perfect 8!
+            { name: 'Olajide Abioye', role: 'AI Engineer', img: 'https://res.cloudinary.com/dzt3imk5w/image/upload/v1772798204/WhatsApp_Image_2026-03-04_at_9.46.26_PM_1_jx4dcx.jpg' },
+            { name: 'Mary Adeoye', role: 'AI Engineer', img: 'https://res.cloudinary.com/dzt3imk5w/image/upload/v1772798204/WhatsApp_Image_2026-03-04_at_9.51.24_PM_1_ibxkks.jpg' },
+            { name: 'Esther Kudoro', role: 'AI Engineer', img: 'https://res.cloudinary.com/dzt3imk5w/image/upload/v1772800096/ricus-_2-of-14_djbgo2.jpg' },
+
           ].map((member, idx) => (
             <motion.div 
               key={idx} 
@@ -141,7 +148,7 @@ const AboutPage = () => {
               <img src={member.img} alt={member.name} className="w-24 h-24 rounded-full mx-auto mb-6 object-cover border-4 border-slate-100" />
               <h4 className="font-bold text-slate-900">{member.name}</h4>
               <p className="text-xs font-bold text-blue-600 mt-1 mb-4">{member.role}</p>
-              <p className="text-xs text-slate-500">Dedicated to transforming educational landscapes with innovative strategies.</p>
+              <p className="text-xs text-slate-500"></p>
             </motion.div>
           ))}
         </div>

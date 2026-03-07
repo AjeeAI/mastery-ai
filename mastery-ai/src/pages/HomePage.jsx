@@ -51,7 +51,7 @@ const HomePage = () => {
             {/* Dashboard Mockup Image */}
             <div className="bg-slate-800 rounded-2xl p-4 shadow-2xl border border-slate-700 transform rotate-1 hover:rotate-0 transition-transform duration-500">
               <img 
-                src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=800&q=80" 
+                src="https://res.cloudinary.com/dzt3imk5w/image/upload/v1772805067/Screenshot_2026-03-02_130112_uyj6db.png" 
                 alt="AI Dashboard" 
                 className="rounded-xl w-full h-auto object-cover opacity-90"
               />

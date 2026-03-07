@@ -125,10 +125,15 @@ const AboutPage = () => {
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8">
           {[
-            { name: 'Sarah Jenkins', role: 'CEO & CO-FOUNDER', img: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=256&q=80' },
-            { name: 'David Okafor', role: 'COO & CO-FOUNDER', img: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&q=80' },
+            { name: 'Saheed Olayinka', role: 'Team Lead/AI Engineering Lead', img: 'https://res.cloudinary.com/dzt3imk5w/image/upload/v1772798203/WhatsApp_Image_2026-03-04_at_9.54.02_PM_1_j7gr3n.jpg' },
+            { name: 'Ajijolaoluwa Adesoji', role: 'Co-Team Lead/AI Development Lead', img: 'https://res.cloudinary.com/dzt3imk5w/image/upload/v1772798203/WhatsApp_Image_2026-03-04_at_9.55.50_PM_1_nbrtfj.jpg' },
+            { name: 'Sarah Jenkins', role: 'CEO & Co-Founder', img: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=256&q=80' },
+            { name: 'David Okafor', role: 'COO & Co-Founder', img: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&q=80' },
             { name: 'Emily Roberts', role: 'CTO', img: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=256&q=80' },
-            { name: 'Oluwaseun A.', role: 'PRODUCT LEAD', img: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=256&q=80' }
+            { name: 'Oluwaseun A.', role: 'Product Lead', img: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=256&q=80' },
+            // Add two more real team members here to make it a perfect 8!
+            { name: 'Jane Doe', role: 'Lead Designer', img: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&q=80' },
+            { name: 'John Smith', role: 'Head of Growth', img: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=256&q=80' },
           ].map((member, idx) => (
             <motion.div 
               key={idx} 
@@ -141,7 +146,7 @@ const AboutPage = () => {
               <img src={member.img} alt={member.name} className="w-24 h-24 rounded-full mx-auto mb-6 object-cover border-4 border-slate-100" />
               <h4 className="font-bold text-slate-900">{member.name}</h4>
               <p className="text-xs font-bold text-blue-600 mt-1 mb-4">{member.role}</p>
-              <p className="text-xs text-slate-500">Dedicated to transforming educational landscapes with innovative strategies.</p>
+              <p className="text-xs text-slate-500"></p>
             </motion.div>
           ))}
         </div>

@@ -2,7 +2,7 @@ const API_URL = import.meta.env.VITE_API_URL; // Imports the url set in the envi
 
 export const fetchUserProfile = async (token) => {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+  const timeoutId = setTimeout(() => controller.abort(), 20000); // 20 second timeout
 
   try {
     const response = await fetch(`${API_URL}/users/me`, {
@@ -27,7 +27,7 @@ export const fetchUserProfile = async (token) => {
 
 export const updateUserProfile = async (token, profileData) => {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+  const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s timeout
 
   try {
     const response = await fetch(`${API_URL}/users/me`, {
@@ -61,7 +61,7 @@ export const updateUserProfile = async (token, profileData) => {
 
 export const fetchStudentProfile = async (token) => {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10000);
+  const timeoutId = setTimeout(() => controller.abort(), 20000);
 
   try {
     const response = await fetch(`${API_URL}/students/profile`, {
